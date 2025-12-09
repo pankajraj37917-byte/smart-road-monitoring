@@ -1,957 +1,997 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { 
-  Camera, MapPin, AlertTriangle, CheckCircle, Clock, ThumbsUp, 
-  X, Upload, BarChart2, Activity, Hash, Trophy, Star, 
-  TrendingUp, AlertOctagon, Landmark, Menu 
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Road Monitoring</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Babel for translating JSX in browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-// Optimized Component: Moved outside main component to prevent re-render issues
-const ProgressBar = ({ status }) => {
-  const steps = ['Reported', 'In Progress', 'Resolved'];
-  const currentStep = status === 'Pending' ? 0 : status === 'In Progress' ? 1 : 2;
+    <style>
+        body { background-color: #111827; }
+        /* Smooth scrolling */
+        html { scroll-behavior: smooth; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-  return (
-    <div className="w-full mt-4">
-      <div className="flex justify-between mb-2">
-        {steps.map((step, index) => (
-          <div key={step} className={`text-xs font-semibold ${index <= currentStep ? 'text-blue-400' : 'text-gray-600'}`}>
-            {step}
-          </div>
-        ))}
-      </div>
-      <div className="h-2 bg-gray-700 rounded-full overflow-hidden flex">
-        {steps.map((step, index) => (
-          <div 
-            key={index} 
-            className={`h-full flex-1 border-r border-gray-800 last:border-0 transition-all duration-500 ${
-              index <= currentStep ? (index === 2 ? 'bg-green-500' : 'bg-blue-500') : 'bg-gray-700'
-            }`} 
-          />
-        ))}
-      </div>
-    </div>
-  );
-};
+    <script type="text/babel">
+        const { useState, useMemo, useEffect } = React;
 
-const SmartRoadMonitoring = () => {
-  const [activeTab, setActiveTab] = useState('home'); // home, report, feed, admin, stats
-  const [sortBy, setSortBy] = useState('votes'); // 'votes' | 'recent'
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // State for mobile menu
-  
-  // State for the Admin "Proof of Fix" Modal
-  const [resolvingId, setResolvingId] = useState(null);
-  const [proofImage, setProofImage] = useState(null);
+        // --- Icons (Implemented as simple SVG components for browser compatibility) ---
+        const IconBase = ({ children, className, size = 24, ...props }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className} {...props}>{children}</svg>
+        );
 
-  // Clean up object URLs to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      if (proofImage && proofImage.startsWith('blob:')) {
-        URL.revokeObjectURL(proofImage);
-      }
-    };
-  }, [proofImage]);
+        const Camera = (props) => <IconBase {...props}><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></IconBase>;
+        const MapPin = (props) => <IconBase {...props}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></IconBase>;
+        const AlertTriangle = (props) => <IconBase {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></IconBase>;
+        const CheckCircle = (props) => <IconBase {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconBase>;
+        const Clock = (props) => <IconBase {...props}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></IconBase>;
+        const ThumbsUp = (props) => <IconBase {...props}><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2h0a3.13 3.13 0 0 1 3 3.88Z"/></IconBase>;
+        const X = (props) => <IconBase {...props}><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></IconBase>;
+        const Upload = (props) => <IconBase {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></IconBase>;
+        const BarChart2 = (props) => <IconBase {...props}><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></IconBase>;
+        const Activity = (props) => <IconBase {...props}><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></IconBase>;
+        const Hash = (props) => <IconBase {...props}><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></IconBase>;
+        const Trophy = (props) => <IconBase {...props}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></IconBase>;
+        const Star = (props) => <IconBase {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></IconBase>;
+        const TrendingUp = (props) => <IconBase {...props}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></IconBase>;
+        const AlertOctagon = (props) => <IconBase {...props}><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></IconBase>;
+        const Landmark = (props) => <IconBase {...props}><line x1="3" y1="22" x2="21" y2="22"/><line x1="6" y1="18" x2="6" y2="11"/><line x1="10" y1="18" x2="10" y2="11"/><line x1="14" y1="18" x2="14" y2="11"/><line x1="18" y1="18" x2="18" y2="11"/><polygon points="12 2 20 7 4 7 12 2"/></IconBase>;
+        const Menu = (props) => <IconBase {...props}><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="18" x2="20" y2="18"/></IconBase>;
 
-  // Mappings for Cities to States and Governments (Mock Data)
-  const cityToStateMap = {
-    "Bangalore": "Karnataka",
-    "Mumbai": "Maharashtra",
-    "Pune": "Maharashtra",
-    "Delhi": "Delhi",
-    "Chennai": "Tamil Nadu"
-  };
+        // --- Main Component ---
+        const ProgressBar = ({ status }) => {
+            const steps = ['Reported', 'In Progress', 'Resolved'];
+            const currentStep = status === 'Pending' ? 0 : status === 'In Progress' ? 1 : 2;
 
-  const stateGovtMap = {
-    "Karnataka": { party: "People's Progressive Party", color: "text-green-400" },
-    "Maharashtra": { party: "United Alliance Front", color: "text-orange-400" },
-    "Delhi": { party: "Capital Care Party", color: "text-blue-400" },
-    "Tamil Nadu": { party: "Southern League", color: "text-yellow-400" }
-  };
-
-  // Enriched Data with Cities - ROAD PROBLEMS ONLY
-  const [reports, setReports] = useState([
-    {
-      id: "WRD-45-1024",
-      city: "Bangalore",
-      area: "Indiranagar",
-      location: "MG Road, 4th Block",
-      category: "Pothole",
-      description: "Huge pothole causing traffic slowdown.",
-      status: "Resolved",
-      upvotes: 45,
-      timestamp: "2 hours ago",
-      image: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800",
-      proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
-    },
-    {
-      id: "WRD-22-8991",
-      city: "Mumbai",
-      area: "Andheri West",
-      location: "Link Road",
-      category: "Street Light",
-      description: "Street light broken and hanging dangerously low.",
-      status: "In Progress",
-      upvotes: 128,
-      timestamp: "1 day ago",
-      image: "https://images.unsplash.com/photo-1566041510394-cf7c8d968a4e?auto=format&fit=crop&q=80&w=800",
-      proofImage: null
-    },
-    {
-      id: "WRD-12-3321",
-      city: "Delhi",
-      area: "Sector 12",
-      location: "Market Road",
-      category: "Road Crack",
-      description: "Longitudinal crack spreading across the lane.",
-      status: "Resolved",
-      upvotes: 89,
-      timestamp: "3 days ago",
-      image: "https://images.unsplash.com/photo-1626885375048-c2b64388e604?auto=format&fit=crop&q=80&w=800",
-      proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
-    },
-    {
-      id: "WRD-45-1025",
-      city: "Bangalore",
-      area: "Indiranagar",
-      location: "100ft Road",
-      category: "Pothole",
-      description: "Deep crater near the junction.",
-      status: "Resolved",
-      upvotes: 12,
-      timestamp: "5 hours ago",
-      image: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800",
-      proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
-    },
-    {
-      id: "WRD-45-1026",
-      city: "Bangalore",
-      area: "Koramangala",
-      location: "80ft Road",
-      category: "Faded Markings",
-      description: "Zebra crossing completely invisible.",
-      status: "Pending",
-      upvotes: 34,
-      timestamp: "6 hours ago",
-      image: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80&w=800",
-      proofImage: null
-    },
-    {
-      id: "WRD-99-4411",
-      city: "Mumbai",
-      area: "Bandra",
-      location: "Hill Road",
-      category: "Broken Signal",
-      description: "Traffic light stuck on red.",
-      status: "Pending",
-      upvotes: 56,
-      timestamp: "2 days ago",
-      image: "https://images.unsplash.com/photo-1566041510394-cf7c8d968a4e?auto=format&fit=crop&q=80&w=800",
-      proofImage: null
-    },
-    {
-      id: "WRD-77-2211",
-      city: "Pune",
-      area: "Kothrud",
-      location: "Paud Road",
-      category: "Damaged Manhole",
-      description: "Manhole cover slightly open and dangerous.",
-      status: "Resolved",
-      upvotes: 12,
-      timestamp: "4 days ago",
-      image: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800",
-      proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
-    }
-  ]);
-
-  // Helper to parse "x hours ago" into minutes for sorting
-  const parseTime = (timeStr) => {
-    if (timeStr === 'Just now') return 0;
-    const parts = timeStr.split(' ');
-    const val = parseInt(parts[0]);
-    const unit = parts[1];
-    if (unit && unit.startsWith('hour')) return val * 60;
-    if (unit && unit.startsWith('day')) return val * 1440; // 24 * 60
-    return 999999; // Fallback for unknown formats
-  };
-
-  // Sorting Logic
-  const sortedReports = useMemo(() => {
-    return [...reports].sort((a, b) => {
-      if (sortBy === 'votes') {
-        // Descending Upvotes: More likes = First in list (Lower "Serial Number")
-        if (b.upvotes !== a.upvotes) {
-          return b.upvotes - a.upvotes;
-        }
-        // Tie-breaker: Time
-        return parseTime(a.timestamp) - parseTime(b.timestamp);
-      } else {
-        // Ascending Time: Newest (smallest minutes ago) first
-        return parseTime(a.timestamp) - parseTime(b.timestamp);
-      }
-    });
-  }, [reports, sortBy]);
-
-  // Analytics Logic with City Ranking & Government Performance
-  const stats = useMemo(() => {
-    const areaCounts = {};
-    const categoryCounts = {};
-    const cityStats = {};
-    const stateStats = {};
-
-    reports.forEach(r => {
-      // Basic counts
-      areaCounts[r.area] = (areaCounts[r.area] || 0) + 1;
-      categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1;
-
-      // City Ranking Logic
-      if (!cityStats[r.city]) {
-        cityStats[r.city] = { name: r.city, total: 0, resolved: 0 };
-      }
-      cityStats[r.city].total += 1;
-      
-      // State Ranking Logic
-      const stateName = cityToStateMap[r.city] || "Unknown";
-      if (!stateStats[stateName]) {
-        stateStats[stateName] = { name: stateName, total: 0, resolved: 0 };
-      }
-      stateStats[stateName].total += 1;
-
-      if (r.status === 'Resolved') {
-        cityStats[r.city].resolved += 1;
-        stateStats[stateName].resolved += 1;
-      }
-    });
-
-    const sortedAreas = Object.entries(areaCounts).sort((a, b) => b[1] - a[1]);
-    const sortedCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
-
-    // Calculate Ratio and Sort Cities
-    const cityRankings = Object.values(cityStats).map(city => ({
-      ...city,
-      ratio: city.total > 0 ? (city.resolved / city.total) * 100 : 0
-    })).sort((a, b) => b.ratio - a.ratio); 
-
-    // Calculate Ratio and Sort States (Governments)
-    const stateRankings = Object.values(stateStats).map(state => ({
-      ...state,
-      ratio: state.total > 0 ? (state.resolved / state.total) * 100 : 0,
-      govt: stateGovtMap[state.name] || { party: "Independent", color: "text-gray-400" }
-    })).sort((a, b) => b.ratio - a.ratio);
-
-    // Max values for graph scaling
-    const maxAreaCount = Math.max(...Object.values(areaCounts), 1);
-
-    return { sortedAreas, sortedCategories, maxAreaCount, cityRankings, stateRankings };
-  }, [reports]);
-
-  // Form State
-  const [newReport, setNewReport] = useState({
-    city: 'Bangalore',
-    area: 'Indiranagar',
-    location: '',
-    category: 'Pothole',
-    description: '',
-    image: null
-  });
-
-  const handleFileChange = (e, setFunction, currentObj) => {
-    const file = e.target.files[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      if (currentObj) {
-         setFunction({ ...currentObj, image: url });
-      } else {
-         setFunction(url);
-      }
-    }
-  };
-
-  const generateUniqueId = () => {
-    return `WRD-${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 9000) + 1000}`;
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    const report = {
-      id: generateUniqueId(),
-      city: newReport.city,
-      area: newReport.area,
-      location: newReport.location,
-      category: newReport.category,
-      description: newReport.description,
-      status: "Pending",
-      upvotes: 0,
-      timestamp: "Just now",
-      image: newReport.image || "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800",
-      proofImage: null,
-      comments: []
-    };
-    setReports([report, ...reports]);
-    setNewReport({ city: 'Bangalore', area: 'Indiranagar', location: '', category: 'Pothole', description: '', image: null });
-    setActiveTab('feed');
-  };
-
-  const updateStatus = (id, newStatus) => {
-    const updatedReports = reports.map(report => 
-      report.id === id ? { ...report, status: newStatus } : report
-    );
-    setReports(updatedReports);
-  };
-
-  const submitResolution = () => {
-    if (!proofImage) {
-      alert("Please upload a photo of the fixed road.");
-      return;
-    }
-    const updatedReports = reports.map(report => 
-      report.id === resolvingId ? { ...report, status: 'Resolved', proofImage: proofImage } : report
-    );
-    setReports(updatedReports);
-    setResolvingId(null);
-    setProofImage(null);
-  };
-
-  const handleUpvote = (id) => {
-    const updatedReports = reports.map(report => 
-      report.id === id ? { ...report, upvotes: report.upvotes + 1 } : report
-    );
-    setReports(updatedReports);
-  };
-
-  return (
-    <div className="min-h-screen bg-gray-900 font-sans text-gray-100">
-      
-      {/* Proof of Fix Modal */}
-      {resolvingId && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 border border-gray-700 shadow-2xl">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-white">Close Ticket {resolvingId}</h3>
-              <button onClick={() => {setResolvingId(null); setProofImage(null);}} className="text-gray-400 hover:text-white">
-                <X />
-              </button>
-            </div>
-            
-            <p className="text-gray-400 mb-4 text-sm">
-              To verify this resolution, you <span className="text-red-400 font-bold">must</span> upload a photo of the completed work.
-            </p>
-
-            <div className="space-y-4">
-              <div className="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center bg-gray-700/50 relative">
-                <input 
-                  type="file" 
-                  accept="image/*"
-                  onChange={(e) => handleFileChange(e, setProofImage, null)}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                />
-                {proofImage ? (
-                  <img src={proofImage} alt="Proof" className="h-40 w-full object-cover rounded-lg mx-auto" />
-                ) : (
-                  <div className="flex flex-col items-center">
-                    <Upload className="text-blue-400 mb-2" size={32} />
-                    <p className="text-blue-300 font-medium">Upload Proof of Fix</p>
-                  </div>
-                )}
-              </div>
-              
-              <button 
-                onClick={submitResolution}
-                className={`w-full py-3 rounded-xl font-bold transition ${proofImage ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
-                disabled={!proofImage}
-              >
-                Verify & Close Complaint
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Navigation */}
-      <nav className="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center cursor-pointer" onClick={() => setActiveTab('home')}>
-              <div className="bg-blue-600 p-2 rounded-lg mr-2">
-                <MapPin className="text-white" size={24} />
-              </div>
-              <span className="font-bold text-xl tracking-tight text-white">Smart Road Monitoring</span>
-            </div>
-            
-            {/* Desktop Menu */}
-            <div className="hidden md:flex space-x-8">
-              {['home', 'feed', 'stats', 'admin'].map((tab) => (
-                <button 
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`capitalize ${activeTab === tab ? 'text-blue-400 font-bold' : 'text-gray-400 hover:text-white transition'}`}
-                >
-                  {tab === 'feed' ? 'Dashboard' : tab === 'stats' ? 'Analytics' : tab === 'admin' ? 'Official' : tab}
-                </button>
-              ))}
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => setActiveTab('report')}
-                className="bg-blue-600 text-white px-4 py-2 rounded-full font-medium shadow-lg hover:bg-blue-500 transition transform hover:-translate-y-0.5 flex items-center text-sm md:text-base"
-              >
-                <Camera size={18} className="mr-2" /> <span className="hidden sm:inline">Report Issue</span> <span className="sm:hidden">Report</span>
-              </button>
-
-              {/* Mobile Menu Button */}
-              <button 
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="md:hidden text-gray-400 hover:text-white"
-              >
-                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Mobile Menu Dropdown */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden bg-gray-800 border-t border-gray-700">
-            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-              {['home', 'feed', 'stats', 'admin'].map((tab) => (
-                <button 
-                  key={tab}
-                  onClick={() => {
-                    setActiveTab(tab);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium capitalize ${activeTab === tab ? 'bg-gray-900 text-blue-400' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}
-                >
-                  {tab === 'feed' ? 'Dashboard' : tab === 'stats' ? 'Analytics' : tab === 'admin' ? 'Official Portal' : tab}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </nav>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
-        {/* HOME VIEW */}
-        {activeTab === 'home' && (
-          <div className="space-y-16">
-            <section className="text-center py-20 px-4">
-              <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 leading-tight">
-                Smart Road Monitoring <br/>
-                <span className="text-blue-500">Smoother Journeys.</span>
-              </h1>
-              
-              {/* Inspirational Quote Section */}
-              <div className="max-w-3xl mx-auto mb-10 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/30 p-6 rounded-2xl backdrop-blur-sm">
-                <p className="text-xl md:text-2xl font-serif italic text-blue-200 mb-2">
-                  "Your shutter can save a life."
-                </p>
-                <p className="text-base md:text-lg text-gray-300 font-medium">
-                  One Photo = One Accident Less.
-                </p>
-              </div>
-
-              <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-400 mb-10">
-                A transparent, public ledger for road infrastructure issues. Authorities must upload proof to close tickets.
-              </p>
-              <div className="flex flex-col sm:flex-row justify-center gap-4">
-                <button 
-                  onClick={() => setActiveTab('report')}
-                  className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-900/50 hover:bg-blue-500 transition w-full sm:w-auto"
-                >
-                  File Complaint
-                </button>
-                <button 
-                  onClick={() => setActiveTab('stats')}
-                  className="bg-gray-800 text-white border border-gray-700 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-700 transition w-full sm:w-auto"
-                >
-                  View Graphs
-                </button>
-              </div>
-            </section>
-            
-            {/* Quick Stats Teaser */}
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-gray-400 font-medium">Top Star City</h3>
-                  <Star className="text-yellow-400 fill-yellow-400" />
-                </div>
-                <p className="text-3xl font-bold text-white">
-                  {stats.cityRankings[0]?.name || "N/A"}
-                </p>
-                <p className="text-sm text-green-400 mt-2">
-                  {Math.round(stats.cityRankings[0]?.ratio || 0)}% Efficiency
-                </p>
-              </div>
-              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-gray-400 font-medium">Top Road Issue</h3>
-                  <AlertTriangle className="text-yellow-500" />
-                </div>
-                <p className="text-3xl font-bold text-white">{stats.sortedCategories[0]?.[0] || "N/A"}</p>
-                <p className="text-sm text-yellow-400 mt-2">Needs Urgent Attention</p>
-              </div>
-              <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-gray-400 font-medium">Underperforming State</h3>
-                  <AlertOctagon className="text-red-500" />
-                </div>
-                <p className="text-3xl font-bold text-white">
-                  {stats.stateRankings[stats.stateRankings.length - 1]?.name || "N/A"}
-                </p>
-                <p className="text-sm text-red-400 mt-2">
-                  Action Required
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* REPORT VIEW */}
-        {activeTab === 'report' && (
-          <div className="max-w-2xl mx-auto">
-            <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700 overflow-hidden">
-              <div className="bg-blue-600 p-6 text-white">
-                <h2 className="text-2xl font-bold flex items-center">
-                  <AlertTriangle className="mr-3" /> New Road Report
-                </h2>
-                <p className="text-blue-100 mt-2">Your ID will be generated upon submission.</p>
-              </div>
-              
-              <form onSubmit={handleSubmit} className="p-8 space-y-6">
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300">City</label>
-                    <select 
-                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                      value={newReport.city}
-                      onChange={(e) => setNewReport({...newReport, city: e.target.value})}
-                    >
-                      <option>Bangalore</option>
-                      <option>Mumbai</option>
-                      <option>Delhi</option>
-                      <option>Pune</option>
-                      <option>Chennai</option>
-                    </select>
-                  </div>
-                   <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300">Area / Ward</label>
-                    <input 
-                      type="text"
-                      placeholder="e.g. Indiranagar"
-                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                      value={newReport.area}
-                      onChange={(e) => setNewReport({...newReport, area: e.target.value})}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300">Problem Type</label>
-                    <select 
-                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                      value={newReport.category}
-                      onChange={(e) => setNewReport({...newReport, category: e.target.value})}
-                    >
-                      <option>Pothole</option>
-                      <option>Street Light</option>
-                      <option>Road Crack</option>
-                      <option>Broken Signal</option>
-                      <option>Faded Markings</option>
-                      <option>Damaged Manhole</option>
-                      <option>Missing Signage</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-gray-300">Specific Location</label>
-                    <input 
-                      type="text" 
-                      placeholder="e.g. Near HDFC Bank"
-                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                      value={newReport.location}
-                      onChange={(e) => setNewReport({...newReport, location: e.target.value})}
-                      required
-                    />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-300">Description</label>
-                  <textarea 
-                    placeholder="Describe the road issue..."
-                    rows="4"
-                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={newReport.description}
-                    onChange={(e) => setNewReport({...newReport, description: e.target.value})}
-                    required
-                  ></textarea>
-                </div>
-
-                 {/* Image Upload Area */}
-                 <div className="space-y-2">
-                  <label className="block text-sm font-medium text-gray-300">Evidence</label>
-                  <div className="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center hover:bg-gray-750 transition cursor-pointer relative bg-gray-700/50">
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, setNewReport, newReport)}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                      required
-                    />
-                    {newReport.image ? (
-                      <div className="relative h-48 w-full">
-                        <img src={newReport.image} alt="Preview" className="h-full w-full object-cover rounded-lg" />
-                      </div>
-                    ) : (
-                      <div className="flex flex-col items-center">
-                        <Upload className="text-gray-400 mb-2" size={32} />
-                        <p className="text-gray-400 text-sm">Upload Photo</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                <button 
-                  type="submit" 
-                  className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-500 shadow-lg transition"
-                >
-                  Generate Official Report
-                </button>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* ANALYTICS/STATS VIEW - GRAPH UPDATE */}
-        {activeTab === 'stats' && (
-          <div className="space-y-8">
-            <h2 className="text-3xl font-bold text-white flex items-center">
-              <BarChart2 className="mr-3 text-blue-500" /> Graphical Analysis
-            </h2>
-            
-             {/* New State Governance Report Card */}
-             <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
-               <h3 className="text-2xl font-bold text-white mb-6 flex items-center">
-                 <Landmark className="mr-3 text-purple-500" /> State Governance Tracker
-                 <span className="ml-3 text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full border border-purple-500/30">
-                   Resolution Efficiency by Ruling Government
-                 </span>
-               </h3>
-
-               <div className="grid grid-cols-1 gap-4">
-                 {stats.stateRankings.map((state, index) => {
-                   const isCritical = state.ratio < 50;
-                   return (
-                     <div key={state.name} className={`p-5 rounded-xl border transition flex flex-col md:flex-row items-center justify-between ${isCritical ? 'bg-red-900/10 border-red-500/50' : 'bg-gray-700/30 border-gray-700'}`}>
-                       
-                       <div className="flex items-center mb-4 md:mb-0 w-full md:w-1/3">
-                         <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg mr-4 bg-gray-700 text-gray-300`}>
-                           {index + 1}
-                         </div>
-                         <div>
-                           <h4 className="font-bold text-lg text-white">{state.name}</h4>
-                           <p className={`text-sm font-semibold ${state.govt.color}`}>{state.govt.party}</p>
-                         </div>
-                       </div>
-
-                       {/* Status Banner */}
-                       <div className="w-full md:w-1/3 flex justify-center mb-4 md:mb-0">
-                          {isCritical ? (
-                            <div className="bg-red-500/20 border border-red-500 text-red-400 px-4 py-2 rounded-lg flex items-center animate-pulse">
-                              <AlertOctagon size={18} className="mr-2" />
-                              <span className="font-bold">CRITICAL: Underperforming</span>
+            return (
+                <div className="w-full mt-4">
+                    <div className="flex justify-between mb-2">
+                        {steps.map((step, index) => (
+                            <div key={step} className={`text-xs font-semibold ${index <= currentStep ? 'text-blue-400' : 'text-gray-600'}`}>
+                                {step}
                             </div>
-                          ) : (
-                            <div className="bg-green-500/20 border border-green-500 text-green-400 px-4 py-2 rounded-lg flex items-center">
-                              <CheckCircle size={18} className="mr-2" />
-                              <span className="font-bold">Active & Responsive</span>
-                            </div>
-                          )}
-                       </div>
+                        ))}
+                    </div>
+                    <div className="h-2 bg-gray-700 rounded-full overflow-hidden flex">
+                        {steps.map((step, index) => (
+                            <div 
+                                key={index} 
+                                className={`h-full flex-1 border-r border-gray-800 last:border-0 transition-all duration-500 ${
+                                    index <= currentStep ? (index === 2 ? 'bg-green-500' : 'bg-blue-500') : 'bg-gray-700'
+                                }`} 
+                            />
+                        ))}
+                    </div>
+                </div>
+            );
+        };
 
-                       {/* Stats */}
-                       <div className="text-right w-full md:w-1/3">
-                          <span className="text-3xl font-bold text-white">{Math.round(state.ratio)}%</span>
-                          <span className="text-xs text-gray-400 block">Resolution Rate</span>
-                       </div>
-                     </div>
-                   );
-                 })}
-               </div>
-            </div>
-
-            {/* Existing Star City Leaderboard */}
-            <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-8 rounded-2xl border border-gray-700 shadow-xl relative overflow-hidden">
-               <div className="absolute top-0 right-0 p-8 opacity-10">
-                 <Trophy size={200} className="text-yellow-500" />
-               </div>
-               
-               <h3 className="text-2xl font-bold text-white mb-6 flex items-center relative z-10">
-                 <Trophy className="mr-3 text-yellow-500" /> National Star City Leaderboard
-               </h3>
-
-               <div className="space-y-6 relative z-10">
-                 {stats.cityRankings.map((city, index) => (
-                   <div key={city.name} className={`p-4 rounded-xl border transition flex items-center ${index === 0 ? 'bg-yellow-900/10 border-yellow-500/50' : 'bg-gray-800/50 border-gray-700'}`}>
-                     <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl mr-4 ${
-                       index === 0 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/50' : 
-                       index === 1 ? 'bg-gray-400 text-black' : 
-                       index === 2 ? 'bg-orange-700 text-white' : 'bg-gray-700 text-gray-400'
-                     }`}>
-                       {index + 1}
-                     </div>
-                     
-                     <div className="flex-1">
-                       <div className="flex justify-between items-end mb-2">
-                         <h4 className={`font-bold text-lg ${index === 0 ? 'text-yellow-400' : 'text-gray-200'}`}>
-                           {city.name} {index === 0 && <Star className="inline h-4 w-4 fill-yellow-400 ml-1" />}
-                         </h4>
-                         <div className="text-right">
-                           <span className="text-2xl font-bold text-white">{Math.round(city.ratio)}%</span>
-                           <span className="text-xs text-gray-400 block">Efficiency</span>
-                         </div>
-                       </div>
-                       
-                       {/* Progress Bar */}
-                       <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
-                         <div 
-                           className={`h-full rounded-full transition-all duration-1000 ${
-                             index === 0 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 
-                             'bg-blue-600'
-                           }`} 
-                           style={{ width: `${city.ratio}%` }}
-                         ></div>
-                       </div>
-                     </div>
-                   </div>
-                 ))}
-               </div>
-            </div>
+        const SmartRoadMonitoring = () => {
+            const [activeTab, setActiveTab] = useState('home'); 
+            const [sortBy, setSortBy] = useState('votes');
+            const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
             
-            <div className="grid md:grid-cols-3 gap-6">
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
-                   <p className="text-gray-400 mb-2">Total Reports</p>
-                   <p className="text-4xl font-bold text-white">{reports.length}</p>
-                </div>
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
-                   <p className="text-gray-400 mb-2">Pending</p>
-                   <p className="text-4xl font-bold text-red-500">{reports.filter(r => r.status === 'Pending').length}</p>
-                </div>
-                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
-                   <p className="text-gray-400 mb-2">Verified Fixed</p>
-                   <p className="text-4xl font-bold text-green-500">{reports.filter(r => r.status === 'Resolved').length}</p>
-                </div>
-            </div>
-          </div>
-        )}
+            // State for the Admin "Proof of Fix" Modal
+            const [resolvingId, setResolvingId] = useState(null);
+            const [proofImage, setProofImage] = useState(null);
 
-        {/* FEED VIEW */}
-        {activeTab === 'feed' && (
-          <div>
-            <div className="flex flex-col md:flex-row justify-between items-center mb-8">
-              <h2 className="text-3xl font-bold text-white">Public Dashboard</h2>
-              
-              {/* Sort Controls */}
-              <div className="flex bg-gray-800 rounded-lg p-1 border border-gray-700 mt-4 md:mt-0">
-                <button 
-                  onClick={() => setSortBy('votes')}
-                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition ${
-                    sortBy === 'votes' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <TrendingUp size={16} className="mr-2" /> Most Critical (Likes)
-                </button>
-                <button 
-                  onClick={() => setSortBy('recent')}
-                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition ${
-                    sortBy === 'recent' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  <Clock size={16} className="mr-2" /> Most Recent
-                </button>
-              </div>
-            </div>
+            // Clean up object URLs to prevent memory leaks
+            useEffect(() => {
+                return () => {
+                    if (proofImage && proofImage.startsWith('blob:')) {
+                        URL.revokeObjectURL(proofImage);
+                    }
+                };
+            }, [proofImage]);
 
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {sortedReports.map((report) => (
-                <div key={report.id} className="bg-gray-800 rounded-2xl shadow-lg border border-gray-700 overflow-hidden flex flex-col">
-                  {/* Card Header with ID */}
-                  <div className="px-6 py-3 bg-gray-750 border-b border-gray-700 flex justify-between items-center">
-                     <span className="bg-gray-900 text-gray-400 text-xs font-mono py-1 px-2 rounded border border-gray-700 flex items-center">
-                       <Hash size={10} className="mr-1"/> {report.id}
-                     </span>
-                     <div className="text-right">
-                       <span className="text-xs text-white block font-bold">{report.city}</span>
-                       <span className="text-xs text-gray-500 block">{report.area}</span>
-                     </div>
-                  </div>
+            // Mappings for Cities to States and Governments
+            const cityToStateMap = {
+                "Bangalore": "Karnataka",
+                "Mumbai": "Maharashtra",
+                "Pune": "Maharashtra",
+                "Delhi": "Delhi",
+                "Chennai": "Tamil Nadu"
+            };
 
-                  {/* Image Display - Split if Resolved */}
-                  <div className="h-48 relative overflow-hidden group bg-gray-900">
-                    {report.status === 'Resolved' && report.proofImage ? (
-                      <div className="flex h-full w-full">
-                        <div className="w-1/2 relative border-r border-white/20">
-                          <img src={report.image} className="w-full h-full object-cover" alt="Before" />
-                          <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded">BEFORE</div>
+            const stateGovtMap = {
+                "Karnataka": { party: "People's Progressive Party", color: "text-green-400" },
+                "Maharashtra": { party: "United Alliance Front", color: "text-orange-400" },
+                "Delhi": { party: "Capital Care Party", color: "text-blue-400" },
+                "Tamil Nadu": { party: "Southern League", color: "text-yellow-400" }
+            };
+
+            // Enriched Data with Cities - ROAD PROBLEMS ONLY
+            const [reports, setReports] = useState([
+                {
+                    id: "WRD-45-1024",
+                    city: "Bangalore",
+                    area: "Indiranagar",
+                    location: "MG Road, 4th Block",
+                    category: "Pothole",
+                    description: "Huge pothole causing traffic slowdown.",
+                    status: "Resolved",
+                    upvotes: 45,
+                    timestamp: "2 hours ago",
+                    image: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800",
+                    proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
+                },
+                {
+                    id: "WRD-22-8991",
+                    city: "Mumbai",
+                    area: "Andheri West",
+                    location: "Link Road",
+                    category: "Street Light",
+                    description: "Street light broken and hanging dangerously low.",
+                    status: "In Progress",
+                    upvotes: 128,
+                    timestamp: "1 day ago",
+                    image: "https://images.unsplash.com/photo-1566041510394-cf7c8d968a4e?auto=format&fit=crop&q=80&w=800",
+                    proofImage: null
+                },
+                {
+                    id: "WRD-12-3321",
+                    city: "Delhi",
+                    area: "Sector 12",
+                    location: "Market Road",
+                    category: "Road Crack",
+                    description: "Longitudinal crack spreading across the lane.",
+                    status: "Resolved",
+                    upvotes: 89,
+                    timestamp: "3 days ago",
+                    image: "https://images.unsplash.com/photo-1626885375048-c2b64388e604?auto=format&fit=crop&q=80&w=800",
+                    proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
+                },
+                {
+                    id: "WRD-45-1025",
+                    city: "Bangalore",
+                    area: "Indiranagar",
+                    location: "100ft Road",
+                    category: "Pothole",
+                    description: "Deep crater near the junction.",
+                    status: "Resolved",
+                    upvotes: 12,
+                    timestamp: "5 hours ago",
+                    image: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800",
+                    proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
+                },
+                {
+                    id: "WRD-45-1026",
+                    city: "Bangalore",
+                    area: "Koramangala",
+                    location: "80ft Road",
+                    category: "Faded Markings",
+                    description: "Zebra crossing completely invisible.",
+                    status: "Pending",
+                    upvotes: 34,
+                    timestamp: "6 hours ago",
+                    image: "https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?auto=format&fit=crop&q=80&w=800",
+                    proofImage: null
+                },
+                {
+                    id: "WRD-99-4411",
+                    city: "Mumbai",
+                    area: "Bandra",
+                    location: "Hill Road",
+                    category: "Broken Signal",
+                    description: "Traffic light stuck on red.",
+                    status: "Pending",
+                    upvotes: 56,
+                    timestamp: "2 days ago",
+                    image: "https://images.unsplash.com/photo-1566041510394-cf7c8d968a4e?auto=format&fit=crop&q=80&w=800",
+                    proofImage: null
+                },
+                {
+                    id: "WRD-77-2211",
+                    city: "Pune",
+                    area: "Kothrud",
+                    location: "Paud Road",
+                    category: "Damaged Manhole",
+                    description: "Manhole cover slightly open and dangerous.",
+                    status: "Resolved",
+                    upvotes: 12,
+                    timestamp: "4 days ago",
+                    image: "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800",
+                    proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
+                }
+            ]);
+
+            // Helper to parse "x hours ago" into minutes for sorting
+            const parseTime = (timeStr) => {
+                if (timeStr === 'Just now') return 0;
+                const parts = timeStr.split(' ');
+                const val = parseInt(parts[0]);
+                const unit = parts[1];
+                if (unit && unit.startsWith('hour')) return val * 60;
+                if (unit && unit.startsWith('day')) return val * 1440; // 24 * 60
+                return 999999; // Fallback for unknown formats
+            };
+
+            // Sorting Logic
+            const sortedReports = useMemo(() => {
+                return [...reports].sort((a, b) => {
+                    if (sortBy === 'votes') {
+                        if (b.upvotes !== a.upvotes) {
+                            return b.upvotes - a.upvotes;
+                        }
+                        return parseTime(a.timestamp) - parseTime(b.timestamp);
+                    } else {
+                        return parseTime(a.timestamp) - parseTime(b.timestamp);
+                    }
+                });
+            }, [reports, sortBy]);
+
+            // Analytics Logic with City Ranking & Government Performance
+            const stats = useMemo(() => {
+                const areaCounts = {};
+                const categoryCounts = {};
+                const cityStats = {};
+                const stateStats = {};
+
+                reports.forEach(r => {
+                    areaCounts[r.area] = (areaCounts[r.area] || 0) + 1;
+                    categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1;
+
+                    if (!cityStats[r.city]) {
+                        cityStats[r.city] = { name: r.city, total: 0, resolved: 0 };
+                    }
+                    cityStats[r.city].total += 1;
+                    
+                    const stateName = cityToStateMap[r.city] || "Unknown";
+                    if (!stateStats[stateName]) {
+                        stateStats[stateName] = { name: stateName, total: 0, resolved: 0 };
+                    }
+                    stateStats[stateName].total += 1;
+
+                    if (r.status === 'Resolved') {
+                        cityStats[r.city].resolved += 1;
+                        stateStats[stateName].resolved += 1;
+                    }
+                });
+
+                const sortedAreas = Object.entries(areaCounts).sort((a, b) => b[1] - a[1]);
+                const sortedCategories = Object.entries(categoryCounts).sort((a, b) => b[1] - a[1]);
+
+                const cityRankings = Object.values(cityStats).map(city => ({
+                    ...city,
+                    ratio: city.total > 0 ? (city.resolved / city.total) * 100 : 0
+                })).sort((a, b) => b.ratio - a.ratio); 
+
+                const stateRankings = Object.values(stateStats).map(state => ({
+                    ...state,
+                    ratio: state.total > 0 ? (state.resolved / state.total) * 100 : 0,
+                    govt: stateGovtMap[state.name] || { party: "Independent", color: "text-gray-400" }
+                })).sort((a, b) => b.ratio - a.ratio);
+
+                const maxAreaCount = Math.max(...Object.values(areaCounts), 1);
+
+                return { sortedAreas, sortedCategories, maxAreaCount, cityRankings, stateRankings };
+            }, [reports]);
+
+            // Form State
+            const [newReport, setNewReport] = useState({
+                city: 'Bangalore',
+                area: 'Indiranagar',
+                location: '',
+                category: 'Pothole',
+                description: '',
+                image: null
+            });
+
+            const handleFileChange = (e, setFunction, currentObj) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const url = URL.createObjectURL(file);
+                    if (currentObj) {
+                        setFunction({ ...currentObj, image: url });
+                    } else {
+                        setFunction(url);
+                    }
+                }
+            };
+
+            const generateUniqueId = () => {
+                return `WRD-${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 9000) + 1000}`;
+            };
+
+            const handleSubmit = (e) => {
+                e.preventDefault();
+                const report = {
+                    id: generateUniqueId(),
+                    city: newReport.city,
+                    area: newReport.area,
+                    location: newReport.location,
+                    category: newReport.category,
+                    description: newReport.description,
+                    status: "Pending",
+                    upvotes: 0,
+                    timestamp: "Just now",
+                    image: newReport.image || "https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800",
+                    proofImage: null,
+                    comments: []
+                };
+                setReports([report, ...reports]);
+                setNewReport({ city: 'Bangalore', area: 'Indiranagar', location: '', category: 'Pothole', description: '', image: null });
+                setActiveTab('feed');
+            };
+
+            const updateStatus = (id, newStatus) => {
+                const updatedReports = reports.map(report => 
+                    report.id === id ? { ...report, status: newStatus } : report
+                );
+                setReports(updatedReports);
+            };
+
+            const submitResolution = () => {
+                if (!proofImage) {
+                    alert("Please upload a photo of the fixed road.");
+                    return;
+                }
+                const updatedReports = reports.map(report => 
+                    report.id === resolvingId ? { ...report, status: 'Resolved', proofImage: proofImage } : report
+                );
+                setReports(updatedReports);
+                setResolvingId(null);
+                setProofImage(null);
+            };
+
+            const handleUpvote = (id) => {
+                const updatedReports = reports.map(report => 
+                    report.id === id ? { ...report, upvotes: report.upvotes + 1 } : report
+                );
+                setReports(updatedReports);
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-900 font-sans text-gray-100">
+                    
+                    {/* Proof of Fix Modal */}
+                    {resolvingId && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+                            <div className="bg-gray-800 rounded-2xl w-full max-w-md p-6 border border-gray-700 shadow-2xl">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-xl font-bold text-white">Close Ticket {resolvingId}</h3>
+                                    <button onClick={() => {setResolvingId(null); setProofImage(null);}} className="text-gray-400 hover:text-white">
+                                        <X />
+                                    </button>
+                                </div>
+                                
+                                <p className="text-gray-400 mb-4 text-sm">
+                                    To verify this resolution, you <span className="text-red-400 font-bold">must</span> upload a photo of the completed work.
+                                </p>
+
+                                <div className="space-y-4">
+                                    <div className="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center bg-gray-700/50 relative">
+                                        <input 
+                                            type="file" 
+                                            accept="image/*"
+                                            onChange={(e) => handleFileChange(e, setProofImage, null)}
+                                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                        />
+                                        {proofImage ? (
+                                            <img src={proofImage} alt="Proof" className="h-40 w-full object-cover rounded-lg mx-auto" />
+                                        ) : (
+                                            <div className="flex flex-col items-center">
+                                                <Upload className="text-blue-400 mb-2" size={32} />
+                                                <p className="text-blue-300 font-medium">Upload Proof of Fix</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    <button 
+                                        onClick={submitResolution}
+                                        className={`w-full py-3 rounded-xl font-bold transition ${proofImage ? 'bg-green-600 hover:bg-green-500 text-white shadow-lg' : 'bg-gray-700 text-gray-500 cursor-not-allowed'}`}
+                                        disabled={!proofImage}
+                                    >
+                                        Verify & Close Complaint
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                        <div className="w-1/2 relative">
-                          <img src={report.proofImage} className="w-full h-full object-cover" alt="After" />
-                          <div className="absolute top-2 left-2 bg-green-600 text-white text-[10px] px-2 py-1 rounded font-bold">FIXED</div>
-                        </div>
-                      </div>
-                    ) : (
-                      <img 
-                        src={report.image} 
-                        alt="Report" 
-                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition duration-500"
-                      />
                     )}
-                    
-                    {report.status !== 'Resolved' && (
-                       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-900 to-transparent p-4">
-                          <span className="text-white font-bold text-lg drop-shadow-md">{report.category}</span>
-                       </div>
-                    )}
-                  </div>
-                  
-                  <div className="p-6 flex-1 flex flex-col">
-                    <h3 className="font-semibold text-gray-200 mb-1">{report.location}</h3>
-                    <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                      {report.description}
-                    </p>
-                    
-                    {/* Progress Bar Visualization */}
-                    <div className="mt-auto">
-                      <ProgressBar status={report.status} />
-                    </div>
-                    
-                    <div className="pt-4 mt-4 border-t border-gray-700 flex items-center justify-between">
-                      <button 
-                        onClick={() => handleUpvote(report.id)}
-                        className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition"
-                      >
-                        <ThumbsUp size={18} />
-                        <span className="text-sm font-medium">{report.upvotes}</span>
-                      </button>
-                      <span className="text-xs text-gray-500 flex items-center">
-                        <Clock size={12} className="mr-1" /> {report.timestamp}
-                      </span>
-                    </div>
-                  </div>
+
+                    {/* Navigation */}
+                    <nav className="bg-gray-800 border-b border-gray-700 sticky top-0 z-50">
+                        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                            <div className="flex justify-between h-16 items-center">
+                                <div className="flex items-center cursor-pointer" onClick={() => setActiveTab('home')}>
+                                    <div className="bg-blue-600 p-2 rounded-lg mr-2">
+                                        <MapPin className="text-white" size={24} />
+                                    </div>
+                                    <span className="font-bold text-xl tracking-tight text-white">Smart Road Monitoring</span>
+                                </div>
+                                
+                                {/* Desktop Menu */}
+                                <div className="hidden md:flex space-x-8">
+                                    {['home', 'feed', 'stats', 'admin'].map((tab) => (
+                                        <button 
+                                            key={tab}
+                                            onClick={() => setActiveTab(tab)}
+                                            className={`capitalize ${activeTab === tab ? 'text-blue-400 font-bold' : 'text-gray-400 hover:text-white transition'}`}
+                                        >
+                                            {tab === 'feed' ? 'Dashboard' : tab === 'stats' ? 'Analytics' : tab === 'admin' ? 'Official' : tab}
+                                        </button>
+                                    ))}
+                                </div>
+                                
+                                <div className="flex items-center gap-4">
+                                    <button 
+                                        onClick={() => setActiveTab('report')}
+                                        className="bg-blue-600 text-white px-4 py-2 rounded-full font-medium shadow-lg hover:bg-blue-500 transition transform hover:-translate-y-0.5 flex items-center text-sm md:text-base"
+                                    >
+                                        <Camera size={18} className="mr-2" /> <span className="hidden sm:inline">Report Issue</span> <span className="sm:hidden">Report</span>
+                                    </button>
+
+                                    {/* Mobile Menu Button */}
+                                    <button 
+                                        onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                                        className="md:hidden text-gray-400 hover:text-white"
+                                    >
+                                        <Menu size={24} />
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Mobile Menu Dropdown */}
+                        {isMobileMenuOpen && (
+                            <div className="md:hidden bg-gray-800 border-t border-gray-700">
+                                <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                                    {['home', 'feed', 'stats', 'admin'].map((tab) => (
+                                        <button 
+                                            key={tab}
+                                            onClick={() => {
+                                                setActiveTab(tab);
+                                                setIsMobileMenuOpen(false);
+                                            }}
+                                            className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium capitalize ${activeTab === tab ? 'bg-gray-900 text-blue-400' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}
+                                        >
+                                            {tab === 'feed' ? 'Dashboard' : tab === 'stats' ? 'Analytics' : tab === 'admin' ? 'Official Portal' : tab}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </nav>
+
+                    {/* Main Content */}
+                    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                        
+                        {/* HOME VIEW */}
+                        {activeTab === 'home' && (
+                            <div className="space-y-16">
+                                <section className="text-center py-20 px-4">
+                                    <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 leading-tight">
+                                        Smart Road Monitoring <br/>
+                                        <span className="text-blue-500">Smoother Journeys.</span>
+                                    </h1>
+                                    
+                                    {/* Inspirational Quote Section */}
+                                    <div className="max-w-3xl mx-auto mb-10 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/30 p-6 rounded-2xl backdrop-blur-sm">
+                                        <p className="text-xl md:text-2xl font-serif italic text-blue-200 mb-2">
+                                            "Your shutter can save a life."
+                                        </p>
+                                        <p className="text-base md:text-lg text-gray-300 font-medium">
+                                            One Photo = One Accident Less.
+                                        </p>
+                                    </div>
+
+                                    <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-400 mb-10">
+                                        A transparent, public ledger for road infrastructure issues. Authorities must upload proof to close tickets.
+                                    </p>
+                                    <div className="flex flex-col sm:flex-row justify-center gap-4">
+                                        <button 
+                                            onClick={() => setActiveTab('report')}
+                                            className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-900/50 hover:bg-blue-500 transition w-full sm:w-auto"
+                                        >
+                                            File Complaint
+                                        </button>
+                                        <button 
+                                            onClick={() => setActiveTab('stats')}
+                                            className="bg-gray-800 text-white border border-gray-700 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-700 transition w-full sm:w-auto"
+                                        >
+                                            View Graphs
+                                        </button>
+                                    </div>
+                                </section>
+                                
+                                {/* Quick Stats Teaser */}
+                                <div className="grid md:grid-cols-3 gap-6">
+                                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-gray-400 font-medium">Top Star City</h3>
+                                            <Star className="text-yellow-400 fill-yellow-400" />
+                                        </div>
+                                        <p className="text-3xl font-bold text-white">
+                                            {stats.cityRankings[0]?.name || "N/A"}
+                                        </p>
+                                        <p className="text-sm text-green-400 mt-2">
+                                            {Math.round(stats.cityRankings[0]?.ratio || 0)}% Efficiency
+                                        </p>
+                                    </div>
+                                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-gray-400 font-medium">Top Road Issue</h3>
+                                            <AlertTriangle className="text-yellow-500" />
+                                        </div>
+                                        <p className="text-3xl font-bold text-white">{stats.sortedCategories[0]?.[0] || "N/A"}</p>
+                                        <p className="text-sm text-yellow-400 mt-2">Needs Urgent Attention</p>
+                                    </div>
+                                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <h3 className="text-gray-400 font-medium">Underperforming State</h3>
+                                            <AlertOctagon className="text-red-500" />
+                                        </div>
+                                        <p className="text-3xl font-bold text-white">
+                                            {stats.stateRankings[stats.stateRankings.length - 1]?.name || "N/A"}
+                                        </p>
+                                        <p className="text-sm text-red-400 mt-2">
+                                            Action Required
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* REPORT VIEW */}
+                        {activeTab === 'report' && (
+                            <div className="max-w-2xl mx-auto">
+                                <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700 overflow-hidden">
+                                    <div className="bg-blue-600 p-6 text-white">
+                                        <h2 className="text-2xl font-bold flex items-center">
+                                            <AlertTriangle className="mr-3" /> New Road Report
+                                        </h2>
+                                        <p className="text-blue-100 mt-2">Your ID will be generated upon submission.</p>
+                                    </div>
+                                    
+                                    <form onSubmit={handleSubmit} className="p-8 space-y-6">
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="block text-sm font-medium text-gray-300">City</label>
+                                                <select 
+                                                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={newReport.city}
+                                                    onChange={(e) => setNewReport({...newReport, city: e.target.value})}
+                                                >
+                                                    <option>Bangalore</option>
+                                                    <option>Mumbai</option>
+                                                    <option>Delhi</option>
+                                                    <option>Pune</option>
+                                                    <option>Chennai</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="block text-sm font-medium text-gray-300">Area / Ward</label>
+                                                <input 
+                                                    type="text"
+                                                    placeholder="e.g. Indiranagar"
+                                                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={newReport.area}
+                                                    onChange={(e) => setNewReport({...newReport, area: e.target.value})}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div className="space-y-2">
+                                                <label className="block text-sm font-medium text-gray-300">Problem Type</label>
+                                                <select 
+                                                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={newReport.category}
+                                                    onChange={(e) => setNewReport({...newReport, category: e.target.value})}
+                                                >
+                                                    <option>Pothole</option>
+                                                    <option>Street Light</option>
+                                                    <option>Road Crack</option>
+                                                    <option>Broken Signal</option>
+                                                    <option>Faded Markings</option>
+                                                    <option>Damaged Manhole</option>
+                                                    <option>Missing Signage</option>
+                                                </select>
+                                            </div>
+                                            <div className="space-y-2">
+                                                <label className="block text-sm font-medium text-gray-300">Specific Location</label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="e.g. Near HDFC Bank"
+                                                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                    value={newReport.location}
+                                                    onChange={(e) => setNewReport({...newReport, location: e.target.value})}
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-2">
+                                            <label className="block text-sm font-medium text-gray-300">Description</label>
+                                            <textarea 
+                                                placeholder="Describe the road issue..."
+                                                rows="4"
+                                                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                value={newReport.description}
+                                                onChange={(e) => setNewReport({...newReport, description: e.target.value})}
+                                                required
+                                            ></textarea>
+                                        </div>
+
+                                        {/* Image Upload Area */}
+                                        <div className="space-y-2">
+                                            <label className="block text-sm font-medium text-gray-300">Evidence</label>
+                                            <div className="border-2 border-dashed border-gray-600 rounded-xl p-8 text-center hover:bg-gray-750 transition cursor-pointer relative bg-gray-700/50">
+                                                <input 
+                                                    type="file" 
+                                                    accept="image/*"
+                                                    onChange={(e) => handleFileChange(e, setNewReport, newReport)}
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                    required
+                                                />
+                                                {newReport.image ? (
+                                                    <div className="relative h-48 w-full">
+                                                        <img src={newReport.image} alt="Preview" className="h-full w-full object-cover rounded-lg" />
+                                                    </div>
+                                                ) : (
+                                                    <div className="flex flex-col items-center">
+                                                        <Upload className="text-gray-400 mb-2" size={32} />
+                                                        <p className="text-gray-400 text-sm">Upload Photo</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <button 
+                                            type="submit" 
+                                            className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg hover:bg-blue-500 shadow-lg transition"
+                                        >
+                                            Generate Official Report
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ANALYTICS/STATS VIEW - GRAPH UPDATE */}
+                        {activeTab === 'stats' && (
+                            <div className="space-y-8">
+                                <h2 className="text-3xl font-bold text-white flex items-center">
+                                    <BarChart2 className="mr-3 text-blue-500" /> Graphical Analysis
+                                </h2>
+                                
+                                {/* New State Governance Report Card */}
+                                <div className="bg-gray-800 p-6 rounded-2xl border border-gray-700 shadow-xl">
+                                    <h3 className="text-2xl font-bold text-white mb-6 flex items-center">
+                                        <Landmark className="mr-3 text-purple-500" /> State Governance Tracker
+                                        <span className="ml-3 text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded-full border border-purple-500/30">
+                                            Resolution Efficiency by Ruling Government
+                                        </span>
+                                    </h3>
+
+                                    <div className="grid grid-cols-1 gap-4">
+                                        {stats.stateRankings.map((state, index) => {
+                                            const isCritical = state.ratio < 50;
+                                            return (
+                                                <div key={state.name} className={`p-5 rounded-xl border transition flex flex-col md:flex-row items-center justify-between ${isCritical ? 'bg-red-900/10 border-red-500/50' : 'bg-gray-700/30 border-gray-700'}`}>
+                                                    
+                                                    <div className="flex items-center mb-4 md:mb-0 w-full md:w-1/3">
+                                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg mr-4 bg-gray-700 text-gray-300`}>
+                                                            {index + 1}
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-bold text-lg text-white">{state.name}</h4>
+                                                            <p className={`text-sm font-semibold ${state.govt.color}`}>{state.govt.party}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Status Banner */}
+                                                    <div className="w-full md:w-1/3 flex justify-center mb-4 md:mb-0">
+                                                        {isCritical ? (
+                                                            <div className="bg-red-500/20 border border-red-500 text-red-400 px-4 py-2 rounded-lg flex items-center animate-pulse">
+                                                                <AlertOctagon size={18} className="mr-2" />
+                                                                <span className="font-bold">CRITICAL: Underperforming</span>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="bg-green-500/20 border border-green-500 text-green-400 px-4 py-2 rounded-lg flex items-center">
+                                                                <CheckCircle size={18} className="mr-2" />
+                                                                <span className="font-bold">Active & Responsive</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Stats */}
+                                                    <div className="text-right w-full md:w-1/3">
+                                                        <span className="text-3xl font-bold text-white">{Math.round(state.ratio)}%</span>
+                                                        <span className="text-xs text-gray-400 block">Resolution Rate</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Existing Star City Leaderboard */}
+                                <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-8 rounded-2xl border border-gray-700 shadow-xl relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 p-8 opacity-10">
+                                        <Trophy size={200} className="text-yellow-500" />
+                                    </div>
+                                    
+                                    <h3 className="text-2xl font-bold text-white mb-6 flex items-center relative z-10">
+                                        <Trophy className="mr-3 text-yellow-500" /> National Star City Leaderboard
+                                    </h3>
+
+                                    <div className="space-y-6 relative z-10">
+                                        {stats.cityRankings.map((city, index) => (
+                                            <div key={city.name} className={`p-4 rounded-xl border transition flex items-center ${index === 0 ? 'bg-yellow-900/10 border-yellow-500/50' : 'bg-gray-800/50 border-gray-700'}`}>
+                                                <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-xl mr-4 ${
+                                                    index === 0 ? 'bg-yellow-500 text-black shadow-lg shadow-yellow-500/50' : 
+                                                    index === 1 ? 'bg-gray-400 text-black' : 
+                                                    index === 2 ? 'bg-orange-700 text-white' : 'bg-gray-700 text-gray-400'
+                                                }`}>
+                                                    {index + 1}
+                                                </div>
+                                                
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-end mb-2">
+                                                        <h4 className={`font-bold text-lg ${index === 0 ? 'text-yellow-400' : 'text-gray-200'}`}>
+                                                            {city.name} {index === 0 && <Star className="inline h-4 w-4 fill-yellow-400 ml-1" />}
+                                                        </h4>
+                                                        <div className="text-right">
+                                                            <span className="text-2xl font-bold text-white">{Math.round(city.ratio)}%</span>
+                                                            <span className="text-xs text-gray-400 block">Efficiency</span>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    {/* Progress Bar */}
+                                                    <div className="w-full bg-gray-700 rounded-full h-3 overflow-hidden">
+                                                        <div 
+                                                            className={`h-full rounded-full transition-all duration-1000 ${
+                                                                index === 0 ? 'bg-gradient-to-r from-yellow-500 to-orange-500' : 
+                                                                'bg-blue-600'
+                                                            }`} 
+                                                            style={{ width: `${city.ratio}%` }}
+                                                        ></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                
+                                <div className="grid md:grid-cols-3 gap-6">
+                                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
+                                        <p className="text-gray-400 mb-2">Total Reports</p>
+                                        <p className="text-4xl font-bold text-white">{reports.length}</p>
+                                    </div>
+                                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
+                                        <p className="text-gray-400 mb-2">Pending</p>
+                                        <p className="text-4xl font-bold text-red-500">{reports.filter(r => r.status === 'Pending').length}</p>
+                                    </div>
+                                    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 text-center">
+                                        <p className="text-gray-400 mb-2">Verified Fixed</p>
+                                        <p className="text-4xl font-bold text-green-500">{reports.filter(r => r.status === 'Resolved').length}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* FEED VIEW */}
+                        {activeTab === 'feed' && (
+                            <div>
+                                <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+                                    <h2 className="text-3xl font-bold text-white">Public Dashboard</h2>
+                                    
+                                    {/* Sort Controls */}
+                                    <div className="flex bg-gray-800 rounded-lg p-1 border border-gray-700 mt-4 md:mt-0">
+                                        <button 
+                                            onClick={() => setSortBy('votes')}
+                                            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition ${
+                                                sortBy === 'votes' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                                            }`}
+                                        >
+                                            <TrendingUp size={16} className="mr-2" /> Most Critical (Likes)
+                                        </button>
+                                        <button 
+                                            onClick={() => setSortBy('recent')}
+                                            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition ${
+                                                sortBy === 'recent' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                                            }`}
+                                        >
+                                            <Clock size={16} className="mr-2" /> Most Recent
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                    {sortedReports.map((report) => (
+                                        <div key={report.id} className="bg-gray-800 rounded-2xl shadow-lg border border-gray-700 overflow-hidden flex flex-col">
+                                            {/* Card Header with ID */}
+                                            <div className="px-6 py-3 bg-gray-750 border-b border-gray-700 flex justify-between items-center">
+                                                <span className="bg-gray-900 text-gray-400 text-xs font-mono py-1 px-2 rounded border border-gray-700 flex items-center">
+                                                    <Hash size={10} className="mr-1"/> {report.id}
+                                                </span>
+                                                <div className="text-right">
+                                                    <span className="text-xs text-white block font-bold">{report.city}</span>
+                                                    <span className="text-xs text-gray-500 block">{report.area}</span>
+                                                </div>
+                                            </div>
+
+                                            {/* Image Display - Split if Resolved */}
+                                            <div className="h-48 relative overflow-hidden group bg-gray-900">
+                                                {report.status === 'Resolved' && report.proofImage ? (
+                                                    <div className="flex h-full w-full">
+                                                        <div className="w-1/2 relative border-r border-white/20">
+                                                            <img src={report.image} className="w-full h-full object-cover" alt="Before" />
+                                                            <div className="absolute top-2 left-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded">BEFORE</div>
+                                                        </div>
+                                                        <div className="w-1/2 relative">
+                                                            <img src={report.proofImage} className="w-full h-full object-cover" alt="After" />
+                                                            <div className="absolute top-2 left-2 bg-green-600 text-white text-[10px] px-2 py-1 rounded font-bold">FIXED</div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <img 
+                                                        src={report.image} 
+                                                        alt="Report" 
+                                                        className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition duration-500"
+                                                    />
+                                                )}
+                                                
+                                                {report.status !== 'Resolved' && (
+                                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-900 to-transparent p-4">
+                                                        <span className="text-white font-bold text-lg drop-shadow-md">{report.category}</span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            
+                                            <div className="p-6 flex-1 flex flex-col">
+                                                <h3 className="font-semibold text-gray-200 mb-1">{report.location}</h3>
+                                                <p className="text-gray-400 text-sm mb-4 line-clamp-2">
+                                                    {report.description}
+                                                </p>
+                                                
+                                                {/* Progress Bar Visualization */}
+                                                <div className="mt-auto">
+                                                    <ProgressBar status={report.status} />
+                                                </div>
+                                                
+                                                <div className="pt-4 mt-4 border-t border-gray-700 flex items-center justify-between">
+                                                    <button 
+                                                        onClick={() => handleUpvote(report.id)}
+                                                        className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition"
+                                                    >
+                                                        <ThumbsUp size={18} />
+                                                        <span className="text-sm font-medium">{report.upvotes}</span>
+                                                    </button>
+                                                    <span className="text-xs text-gray-500 flex items-center">
+                                                        <Clock size={12} className="mr-1" /> {report.timestamp}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ADMIN VIEW */}
+                        {activeTab === 'admin' && (
+                            <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700">
+                                <div className="p-6 border-b border-gray-700 flex flex-col md:flex-row justify-between items-center">
+                                    <div>
+                                        <h2 className="text-xl font-bold text-white">Official Portal</h2>
+                                        <p className="text-sm text-gray-400">Department of Works</p>
+                                    </div>
+
+                                    {/* Admin Sort Controls */}
+                                    <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-600 mt-4 md:mt-0">
+                                        <button 
+                                            onClick={() => setSortBy('votes')}
+                                            className={`flex items-center px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                                                sortBy === 'votes' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                                            }`}
+                                        >
+                                            Priority (Likes)
+                                        </button>
+                                        <button 
+                                            onClick={() => setSortBy('recent')}
+                                            className={`flex items-center px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                                                sortBy === 'recent' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                                            }`}
+                                        >
+                                            Time
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse">
+                                        <thead>
+                                            <tr className="bg-gray-900 border-b border-gray-700 text-xs uppercase text-gray-400 font-semibold">
+                                                <th className="p-4">Rank</th>
+                                                <th className="p-4">ID</th>
+                                                <th className="p-4">City/Area</th>
+                                                <th className="p-4">Type</th>
+                                                <th className="p-4">Pressure</th>
+                                                <th className="p-4">Status</th>
+                                                <th className="p-4">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-700">
+                                            {sortedReports.map((report, index) => (
+                                                <tr key={report.id} className="hover:bg-gray-750 transition">
+                                                    <td className="p-4 text-gray-500 font-bold text-xs">#{index + 1}</td>
+                                                    <td className="p-4 font-mono text-blue-400 text-sm">{report.id}</td>
+                                                    <td className="p-4">
+                                                        <div className="text-gray-300 font-bold text-sm">{report.city}</div>
+                                                        <div className="text-gray-500 text-xs">{report.area}</div>
+                                                    </td>
+                                                    <td className="p-4 text-gray-300">{report.category}</td>
+                                                    <td className="p-4">
+                                                        <div className="flex items-center text-orange-500 font-bold">
+                                                            <Activity size={14} className="mr-1" />
+                                                            {report.upvotes}
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <span className={`px-2 py-1 rounded-full text-xs border ${
+                                                            report.status === 'Resolved' ? 'bg-green-900/30 text-green-400 border-green-800' :
+                                                            report.status === 'In Progress' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
+                                                            'bg-red-900/30 text-red-400 border-red-800'
+                                                        }`}>
+                                                            {report.status}
+                                                        </span>
+                                                    </td>
+                                                    <td className="p-4">
+                                                        <div className="flex space-x-2">
+                                                            {report.status === 'Resolved' ? (
+                                                                <span className="flex items-center text-green-500 text-xs font-bold">
+                                                                    <CheckCircle size={14} className="mr-1" /> Verified
+                                                                </span>
+                                                            ) : (
+                                                                <>
+                                                                    <button 
+                                                                        onClick={() => updateStatus(report.id, 'In Progress')}
+                                                                        className="text-gray-400 hover:text-white border border-gray-600 px-3 py-1 rounded text-xs transition"
+                                                                        disabled={report.status === 'In Progress'}
+                                                                    >
+                                                                        Accept
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => setResolvingId(report.id)}
+                                                                        className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-500 flex items-center shadow-lg shadow-green-900/20"
+                                                                    >
+                                                                        <Upload size={12} className="mr-1" /> Verify & Close
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+
+                    </main>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+            );
+        };
 
-        {/* ADMIN VIEW */}
-        {activeTab === 'admin' && (
-          <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700">
-            <div className="p-6 border-b border-gray-700 flex flex-col md:flex-row justify-between items-center">
-              <div>
-                <h2 className="text-xl font-bold text-white">Official Portal</h2>
-                <p className="text-sm text-gray-400">Department of Works</p>
-              </div>
-
-               {/* Admin Sort Controls */}
-               <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-600 mt-4 md:mt-0">
-                <button 
-                  onClick={() => setSortBy('votes')}
-                  className={`flex items-center px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                    sortBy === 'votes' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  Priority (Likes)
-                </button>
-                <button 
-                  onClick={() => setSortBy('recent')}
-                  className={`flex items-center px-3 py-1.5 rounded-md text-xs font-medium transition ${
-                    sortBy === 'recent' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
-                  }`}
-                >
-                  Time
-                </button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-gray-900 border-b border-gray-700 text-xs uppercase text-gray-400 font-semibold">
-                    <th className="p-4">Rank</th>
-                    <th className="p-4">ID</th>
-                    <th className="p-4">City/Area</th>
-                    <th className="p-4">Type</th>
-                    <th className="p-4">Pressure</th>
-                    <th className="p-4">Status</th>
-                    <th className="p-4">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-700">
-                  {sortedReports.map((report, index) => (
-                    <tr key={report.id} className="hover:bg-gray-750 transition">
-                      <td className="p-4 text-gray-500 font-bold text-xs">#{index + 1}</td>
-                      <td className="p-4 font-mono text-blue-400 text-sm">{report.id}</td>
-                      <td className="p-4">
-                        <div className="text-gray-300 font-bold text-sm">{report.city}</div>
-                        <div className="text-gray-500 text-xs">{report.area}</div>
-                      </td>
-                      <td className="p-4 text-gray-300">{report.category}</td>
-                      <td className="p-4">
-                        <div className="flex items-center text-orange-500 font-bold">
-                          <Activity size={14} className="mr-1" />
-                          {report.upvotes}
-                        </div>
-                      </td>
-                      <td className="p-4">
-                         <span className={`px-2 py-1 rounded-full text-xs border ${
-                          report.status === 'Resolved' ? 'bg-green-900/30 text-green-400 border-green-800' :
-                          report.status === 'In Progress' ? 'bg-yellow-900/30 text-yellow-400 border-yellow-800' :
-                          'bg-red-900/30 text-red-400 border-red-800'
-                        }`}>
-                          {report.status}
-                        </span>
-                      </td>
-                      <td className="p-4">
-                        <div className="flex space-x-2">
-                          {report.status === 'Resolved' ? (
-                             <span className="flex items-center text-green-500 text-xs font-bold">
-                               <CheckCircle size={14} className="mr-1" /> Verified
-                             </span>
-                          ) : (
-                            <>
-                              <button 
-                                onClick={() => updateStatus(report.id, 'In Progress')}
-                                className="text-gray-400 hover:text-white border border-gray-600 px-3 py-1 rounded text-xs transition"
-                                disabled={report.status === 'In Progress'}
-                              >
-                                Accept
-                              </button>
-                              <button 
-                                onClick={() => setResolvingId(report.id)}
-                                className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-500 flex items-center shadow-lg shadow-green-900/20"
-                              >
-                                <Upload size={12} className="mr-1" /> Verify & Close
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-      </main>
-    </div>
-  );
-};
-
-export default SmartRoadMonitoring;
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<SmartRoadMonitoring />);
+    </script>
+</body>
+</html>
