@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { Camera, MapPin, Send, AlertTriangle, CheckCircle, Clock, ThumbsUp, MessageSquare, X, Upload, BarChart2, Activity, Hash, ChevronRight, Eye, Check, Trophy, Star, TrendingUp, AlertOctagon, Landmark } from 'lucide-react';
+import { Camera, MapPin, Send, AlertTriangle, CheckCircle, Clock, ThumbsUp, MessageSquare, X, Upload, BarChart2, Activity, Hash, ChevronRight, Eye, Check, Trophy, Star, TrendingUp, AlertOctagon, Landmark, ArrowUpDown } from 'lucide-react';
 
 const SmartRoadMonitoring = () => {
   const [activeTab, setActiveTab] = useState('home'); // home, report, feed, admin, stats
+  const [sortBy, setSortBy] = useState('votes'); // 'votes' | 'recent'
   
   // State for the Admin "Proof of Fix" Modal
   const [resolvingId, setResolvingId] = useState(null);
@@ -118,6 +119,34 @@ const SmartRoadMonitoring = () => {
       proofImage: "https://images.unsplash.com/photo-1584463635805-f673a4666dce?auto=format&fit=crop&q=80&w=800"
     }
   ]);
+
+  // Helper to parse "x hours ago" into minutes for sorting
+  const parseTime = (timeStr) => {
+    if (timeStr === 'Just now') return 0;
+    const parts = timeStr.split(' ');
+    const val = parseInt(parts[0]);
+    const unit = parts[1];
+    if (unit && unit.startsWith('hour')) return val * 60;
+    if (unit && unit.startsWith('day')) return val * 1440; // 24 * 60
+    return 999999; // Fallback for unknown formats
+  };
+
+  // Sorting Logic
+  const sortedReports = useMemo(() => {
+    return [...reports].sort((a, b) => {
+      if (sortBy === 'votes') {
+        // Descending Upvotes: More likes = First in list (Lower "Serial Number")
+        if (b.upvotes !== a.upvotes) {
+          return b.upvotes - a.upvotes;
+        }
+        // Tie-breaker: Time
+        return parseTime(a.timestamp) - parseTime(b.timestamp);
+      } else {
+        // Ascending Time: Newest (smallest minutes ago) first
+        return parseTime(a.timestamp) - parseTime(b.timestamp);
+      }
+    });
+  }, [reports, sortBy]);
 
   // Analytics Logic with City Ranking & Government Performance
   const stats = useMemo(() => {
@@ -243,59 +272,6 @@ const SmartRoadMonitoring = () => {
       report.id === id ? { ...report, upvotes: report.upvotes + 1 } : report
     );
     setReports(updatedReports);
-  };
-
-  // Custom SVG Bar Chart Component
-  const SimpleBarChart = ({ data, maxValue, color }) => {
-    const chartHeight = 150;
-    const barWidth = 40;
-    const gap = 20;
-    
-    return (
-      <svg width="100%" height={chartHeight + 40} className="overflow-visible">
-        {data.map(([label, value], index) => {
-          const barHeight = (value / maxValue) * chartHeight;
-          const x = index * (barWidth + gap);
-          const y = chartHeight - barHeight;
-          
-          return (
-            <g key={label}>
-              <rect 
-                x={x} 
-                y={y} 
-                width={barWidth} 
-                height={barHeight} 
-                fill={color} 
-                className="hover:opacity-80 transition-opacity cursor-pointer"
-                rx="4"
-              />
-              <text 
-                x={x + barWidth / 2} 
-                y={y - 5} 
-                textAnchor="middle" 
-                fill="white" 
-                fontSize="12" 
-                fontWeight="bold"
-              >
-                {value}
-              </text>
-              <text 
-                x={x + barWidth / 2} 
-                y={chartHeight + 15} 
-                textAnchor="middle" 
-                fill="#9ca3af" 
-                fontSize="10"
-                style={{textTransform: 'capitalize'}}
-              >
-                {label.split(' ')[0]}
-              </text>
-            </g>
-          );
-        })}
-        {/* Baseline */}
-        <line x1="0" y1={chartHeight} x2="100%" y2={chartHeight} stroke="#4b5563" strokeWidth="1" />
-      </svg>
-    );
   };
 
   const ProgressBar = ({ status }) => {
@@ -730,10 +706,32 @@ const SmartRoadMonitoring = () => {
         {/* FEED VIEW */}
         {activeTab === 'feed' && (
           <div>
-            <h2 className="text-3xl font-bold text-white mb-8">Public Dashboard</h2>
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+              <h2 className="text-3xl font-bold text-white">Public Dashboard</h2>
+              
+              {/* Sort Controls */}
+              <div className="flex bg-gray-800 rounded-lg p-1 border border-gray-700 mt-4 md:mt-0">
+                <button 
+                  onClick={() => setSortBy('votes')}
+                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition ${
+                    sortBy === 'votes' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <TrendingUp size={16} className="mr-2" /> Most Critical (Likes)
+                </button>
+                <button 
+                  onClick={() => setSortBy('recent')}
+                  className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition ${
+                    sortBy === 'recent' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  <Clock size={16} className="mr-2" /> Most Recent
+                </button>
+              </div>
+            </div>
 
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-              {reports.map((report) => (
+              {sortedReports.map((report) => (
                 <div key={report.id} className="bg-gray-800 rounded-2xl shadow-lg border border-gray-700 overflow-hidden flex flex-col">
                   {/* Card Header with ID */}
                   <div className="px-6 py-3 bg-gray-750 border-b border-gray-700 flex justify-between items-center">
@@ -807,10 +805,30 @@ const SmartRoadMonitoring = () => {
         {/* ADMIN VIEW */}
         {activeTab === 'admin' && (
           <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700">
-            <div className="p-6 border-b border-gray-700 flex justify-between items-center">
+            <div className="p-6 border-b border-gray-700 flex flex-col md:flex-row justify-between items-center">
               <div>
                 <h2 className="text-xl font-bold text-white">Official Portal</h2>
                 <p className="text-sm text-gray-400">Department of Works</p>
+              </div>
+
+               {/* Admin Sort Controls */}
+               <div className="flex bg-gray-900 rounded-lg p-1 border border-gray-600 mt-4 md:mt-0">
+                <button 
+                  onClick={() => setSortBy('votes')}
+                  className={`flex items-center px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                    sortBy === 'votes' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Priority (Likes)
+                </button>
+                <button 
+                  onClick={() => setSortBy('recent')}
+                  className={`flex items-center px-3 py-1.5 rounded-md text-xs font-medium transition ${
+                    sortBy === 'recent' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'
+                  }`}
+                >
+                  Time
+                </button>
               </div>
             </div>
 
@@ -818,6 +836,7 @@ const SmartRoadMonitoring = () => {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="bg-gray-900 border-b border-gray-700 text-xs uppercase text-gray-400 font-semibold">
+                    <th className="p-4">Rank</th>
                     <th className="p-4">ID</th>
                     <th className="p-4">City/Area</th>
                     <th className="p-4">Type</th>
@@ -827,8 +846,9 @@ const SmartRoadMonitoring = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-700">
-                  {reports.map((report) => (
+                  {sortedReports.map((report, index) => (
                     <tr key={report.id} className="hover:bg-gray-750 transition">
+                      <td className="p-4 text-gray-500 font-bold text-xs">#{index + 1}</td>
                       <td className="p-4 font-mono text-blue-400 text-sm">{report.id}</td>
                       <td className="p-4">
                         <div className="text-gray-300 font-bold text-sm">{report.city}</div>
