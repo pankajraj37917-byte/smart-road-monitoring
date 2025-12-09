@@ -1,13 +1,55 @@
-import React, { useState, useMemo } from 'react';
-import { Camera, MapPin, Send, AlertTriangle, CheckCircle, Clock, ThumbsUp, MessageSquare, X, Upload, BarChart2, Activity, Hash, ChevronRight, Eye, Check, Trophy, Star, TrendingUp, AlertOctagon, Landmark, ArrowUpDown } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  Camera, MapPin, AlertTriangle, CheckCircle, Clock, ThumbsUp, 
+  X, Upload, BarChart2, Activity, Hash, Trophy, Star, 
+  TrendingUp, AlertOctagon, Landmark, Menu 
+} from 'lucide-react';
+
+// Optimized Component: Moved outside main component to prevent re-render issues
+const ProgressBar = ({ status }) => {
+  const steps = ['Reported', 'In Progress', 'Resolved'];
+  const currentStep = status === 'Pending' ? 0 : status === 'In Progress' ? 1 : 2;
+
+  return (
+    <div className="w-full mt-4">
+      <div className="flex justify-between mb-2">
+        {steps.map((step, index) => (
+          <div key={step} className={`text-xs font-semibold ${index <= currentStep ? 'text-blue-400' : 'text-gray-600'}`}>
+            {step}
+          </div>
+        ))}
+      </div>
+      <div className="h-2 bg-gray-700 rounded-full overflow-hidden flex">
+        {steps.map((step, index) => (
+          <div 
+            key={index} 
+            className={`h-full flex-1 border-r border-gray-800 last:border-0 transition-all duration-500 ${
+              index <= currentStep ? (index === 2 ? 'bg-green-500' : 'bg-blue-500') : 'bg-gray-700'
+            }`} 
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
 
 const SmartRoadMonitoring = () => {
   const [activeTab, setActiveTab] = useState('home'); // home, report, feed, admin, stats
   const [sortBy, setSortBy] = useState('votes'); // 'votes' | 'recent'
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // State for mobile menu
   
   // State for the Admin "Proof of Fix" Modal
   const [resolvingId, setResolvingId] = useState(null);
   const [proofImage, setProofImage] = useState(null);
+
+  // Clean up object URLs to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (proofImage && proofImage.startsWith('blob:')) {
+        URL.revokeObjectURL(proofImage);
+      }
+    };
+  }, [proofImage]);
 
   // Mappings for Cities to States and Governments (Mock Data)
   const cityToStateMap = {
@@ -214,10 +256,11 @@ const SmartRoadMonitoring = () => {
   const handleFileChange = (e, setFunction, currentObj) => {
     const file = e.target.files[0];
     if (file) {
+      const url = URL.createObjectURL(file);
       if (currentObj) {
-         setFunction({ ...currentObj, image: URL.createObjectURL(file) });
+         setFunction({ ...currentObj, image: url });
       } else {
-         setFunction(URL.createObjectURL(file));
+         setFunction(url);
       }
     }
   };
@@ -272,33 +315,6 @@ const SmartRoadMonitoring = () => {
       report.id === id ? { ...report, upvotes: report.upvotes + 1 } : report
     );
     setReports(updatedReports);
-  };
-
-  const ProgressBar = ({ status }) => {
-    const steps = ['Reported', 'In Progress', 'Resolved'];
-    const currentStep = status === 'Pending' ? 0 : status === 'In Progress' ? 1 : 2;
-
-    return (
-      <div className="w-full mt-4">
-        <div className="flex justify-between mb-2">
-          {steps.map((step, index) => (
-            <div key={step} className={`text-xs font-semibold ${index <= currentStep ? 'text-blue-400' : 'text-gray-600'}`}>
-              {step}
-            </div>
-          ))}
-        </div>
-        <div className="h-2 bg-gray-700 rounded-full overflow-hidden flex">
-          {steps.map((step, index) => (
-            <div 
-              key={index} 
-              className={`h-full flex-1 border-r border-gray-800 last:border-0 transition-all duration-500 ${
-                index <= currentStep ? (index === 2 ? 'bg-green-500' : 'bg-blue-500') : 'bg-gray-700'
-              }`} 
-            />
-          ))}
-        </div>
-      </div>
-    );
   };
 
   return (
@@ -373,14 +389,44 @@ const SmartRoadMonitoring = () => {
               ))}
             </div>
             
-            <button 
-              onClick={() => setActiveTab('report')}
-              className="bg-blue-600 text-white px-5 py-2 rounded-full font-medium shadow-lg hover:bg-blue-500 transition transform hover:-translate-y-0.5 flex items-center"
-            >
-              <Camera size={18} className="mr-2" /> Report Issue
-            </button>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setActiveTab('report')}
+                className="bg-blue-600 text-white px-4 py-2 rounded-full font-medium shadow-lg hover:bg-blue-500 transition transform hover:-translate-y-0.5 flex items-center text-sm md:text-base"
+              >
+                <Camera size={18} className="mr-2" /> <span className="hidden sm:inline">Report Issue</span> <span className="sm:hidden">Report</span>
+              </button>
+
+              {/* Mobile Menu Button */}
+              <button 
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="md:hidden text-gray-400 hover:text-white"
+              >
+                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Menu Dropdown */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-gray-800 border-t border-gray-700">
+            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+              {['home', 'feed', 'stats', 'admin'].map((tab) => (
+                <button 
+                  key={tab}
+                  onClick={() => {
+                    setActiveTab(tab);
+                    setIsMobileMenuOpen(false);
+                  }}
+                  className={`block w-full text-left px-3 py-2 rounded-md text-base font-medium capitalize ${activeTab === tab ? 'bg-gray-900 text-blue-400' : 'text-gray-300 hover:bg-gray-700 hover:text-white'}`}
+                >
+                  {tab === 'feed' ? 'Dashboard' : tab === 'stats' ? 'Analytics' : tab === 'admin' ? 'Official Portal' : tab}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </nav>
 
       {/* Main Content */}
@@ -390,34 +436,34 @@ const SmartRoadMonitoring = () => {
         {activeTab === 'home' && (
           <div className="space-y-16">
             <section className="text-center py-20 px-4">
-              <h1 className="text-5xl font-extrabold text-white mb-6 leading-tight">
+              <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-6 leading-tight">
                 Smart Road Monitoring <br/>
                 <span className="text-blue-500">Smoother Journeys.</span>
               </h1>
               
               {/* Inspirational Quote Section */}
               <div className="max-w-3xl mx-auto mb-10 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/30 p-6 rounded-2xl backdrop-blur-sm">
-                <p className="text-2xl font-serif italic text-blue-200 mb-2">
+                <p className="text-xl md:text-2xl font-serif italic text-blue-200 mb-2">
                   "Your shutter can save a life."
                 </p>
-                <p className="text-lg text-gray-300 font-medium">
+                <p className="text-base md:text-lg text-gray-300 font-medium">
                   One Photo = One Accident Less.
                 </p>
               </div>
 
-              <p className="max-w-2xl mx-auto text-xl text-gray-400 mb-10">
+              <p className="max-w-2xl mx-auto text-lg md:text-xl text-gray-400 mb-10">
                 A transparent, public ledger for road infrastructure issues. Authorities must upload proof to close tickets.
               </p>
-              <div className="flex justify-center gap-4">
+              <div className="flex flex-col sm:flex-row justify-center gap-4">
                 <button 
                   onClick={() => setActiveTab('report')}
-                  className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-900/50 hover:bg-blue-500 transition"
+                  className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-900/50 hover:bg-blue-500 transition w-full sm:w-auto"
                 >
                   File Complaint
                 </button>
                 <button 
                   onClick={() => setActiveTab('stats')}
-                  className="bg-gray-800 text-white border border-gray-700 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-700 transition"
+                  className="bg-gray-800 text-white border border-gray-700 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-700 transition w-full sm:w-auto"
                 >
                   View Graphs
                 </button>
@@ -475,7 +521,7 @@ const SmartRoadMonitoring = () => {
               
               <form onSubmit={handleSubmit} className="p-8 space-y-6">
                 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                    <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-300">City</label>
                     <select 
@@ -503,7 +549,7 @@ const SmartRoadMonitoring = () => {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <label className="block text-sm font-medium text-gray-300">Problem Type</label>
                     <select 
