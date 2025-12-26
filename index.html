@@ -3,21 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CivicFix - Smart Road Monitoring</title>
+    <title>Smart Road Monitoring</title>
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Import Map for React and Firebase -->
+    <!-- Import Map (UPDATED to stable Firebase v10.13.2) -->
     <script type="importmap">
     {
         "imports": {
             "react": "https://esm.sh/react@18.2.0",
             "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
             "lucide-react": "https://esm.sh/lucide-react@0.330.0",
-            "firebase/app": "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js",
-            "firebase/auth": "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js",
-            "firebase/firestore": "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.13.2/firebase-app.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/10.13.2/firebase-auth.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore.js"
         }
     }
     </script>
@@ -34,10 +34,49 @@
         
         .fade-in { animation: fadeIn 0.5s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Error Overlay Styles */
+        #error-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.9);
+            color: #ef4444;
+            z-index: 9999;
+            padding: 2rem;
+            font-family: monospace;
+            white-space: pre-wrap;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 font-sans antialiased">
     <div id="root"></div>
+    
+    <!-- Error Overlay for Debugging -->
+    <div id="error-overlay">
+        <h1 class="text-2xl font-bold mb-4">Application Error</h1>
+        <p>If you see this, something went wrong with the code.</p>
+        <div id="error-message" class="mt-4 p-4 border border-red-500 rounded bg-red-900/20"></div>
+    </div>
+
+    <!-- Error Handler Script -->
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            const overlay = document.getElementById('error-overlay');
+            const msgDiv = document.getElementById('error-message');
+            overlay.style.display = 'block';
+            msgDiv.textContent = `Error: ${msg}\nLine: ${line}\nColumn: ${col}`;
+            return false;
+        };
+        
+        // Catch unhandled promise rejections (like Firebase init errors)
+        window.onunhandledrejection = function(event) {
+            const overlay = document.getElementById('error-overlay');
+            const msgDiv = document.getElementById('error-message');
+            overlay.style.display = 'block';
+            msgDiv.textContent = `Promise Error: ${event.reason}`;
+        };
+    </script>
 
     <script type="text/babel" data-type="module">
         import React, { useState, useMemo, useEffect, useCallback } from 'react';
@@ -46,7 +85,7 @@
             Camera, MapPin, Send, AlertTriangle, CheckCircle, Clock, ThumbsUp, 
             MessageSquare, X, Upload, BarChart2, Activity, Hash, ChevronRight, 
             Eye, Check, Trophy, Star, TrendingUp, AlertOctagon, Landmark, 
-            Navigation, Globe, Map, Sparkles, FileText, List, ChevronDown 
+            Navigation, Globe, Map, Sparkles, FileText, List, ChevronDown, Calendar
         } from 'lucide-react';
 
         // Firebase Imports
@@ -67,13 +106,12 @@
             serverTimestamp
         } from 'firebase/firestore';
 
-        // --- Firebase Initialization (FIXED) ---
-        // I have removed the conflicting 'let app' and ensured auth/db are started
+        // --- Firebase Initialization ---
         
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const apiKey = ""; // Canvas requirement, ignore this line, using your keys below
+        const apiKey = ""; 
 
-        // YOUR ACTUAL KEYS
+        // YOUR KEYS
         const firebaseConfig = {
             apiKey: "AIzaSyAqIsVhv0N_V_z3ENsYZz76sRQfYlwIrkM",
             authDomain: "civicfix-fbfcc.firebaseapp.com",
@@ -83,18 +121,57 @@
             appId: "1:291507757806:web:0bfcffd778b8e1488c09ff"
         };
 
-        // Initialize Everything Properly
-        const app = initializeApp(firebaseConfig);
-        const auth = getAuth(app);       // This was missing
-        const db = getFirestore(app);    // This was missing
+        let app, auth, db;
+        
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+            console.log("Firebase initialized successfully");
+        } catch(e) {
+            console.error("Firebase Init Error:", e);
+            throw new Error("Firebase configuration failed. Check your keys.");
+        }
 
         // --- Static Data ---
+        // Complete list of Indian States and Districts
         const locationData = {
-            "Andhra Pradesh": ["Anantapur", "Chittoor", "East Godavari", "Guntur", "Krishna", "Kurnool", "Prakasam", "Srikakulam", "Sri Potti Sriramulu Nellore", "Visakhapatnam", "Vizianagaram", "West Godavari", "YSR District, Kadapa (Cuddapah)"],
-            "Karnataka": ["Bagalkot", "Bangalore Rural", "Bangalore Urban", "Belgaum", "Bellary", "Bidar", "Bijapur", "Chamarajanagar", "Chikkaballapur", "Chikmagalur", "Chitradurga", "Dakshina Kannada", "Davangere", "Dharwad", "Gadag", "Gulbarga", "Hassan", "Haveri", "Kodagu", "Kolar", "Koppal", "Mandya", "Mysore", "Raichur", "Ramanagara", "Shimoga", "Tumkur", "Udupi", "Uttara Kannada", "Yadgir"],
-            "Maharashtra": ["Ahmednagar", "Akola", "Amravati", "Aurangabad", "Beed", "Bhandara", "Buldhana", "Chandrapur", "Dhule", "Gadchiroli", "Gondia", "Hingoli", "Jalgaon", "Jalna", "Kolhapur", "Latur", "Mumbai City", "Mumbai Suburban", "Nagpur", "Nanded", "Nandurbar", "Nashik", "Osmanabad", "Palghar", "Parbhani", "Pune", "Raigad", "Ratnagiri", "Sangli", "Satara", "Sindhudurg", "Solapur", "Thane", "Wardha", "Washim", "Yavatmal"],
+            "Andhra Pradesh": ["Anantapur", "Chittoor", "East Godavari", "Guntur", "Krishna", "Kurnool", "Prakasam", "Srikakulam", "Sri Potti Sriramulu Nellore", "Visakhapatnam", "Vizianagaram", "West Godavari", "YSR Kadapa", "Parvathipuram Manyam", "Anakapalli", "Alluri Sitharama Raju", "Kakinada", "Konaseema", "Eluru", "NTR", "Bapatla", "Palnadu", "Nandyal", "Sri Sathya Sai", "Annamayya", "Tirupati"],
+            "Arunachal Pradesh": ["Anjaw", "Changlang", "Dibang Valley", "East Kameng", "East Siang", "Kamle", "Kra Daadi", "Kurung Kumey", "Lepa Rada", "Lohit", "Longding", "Lower Dibang Valley", "Lower Siang", "Lower Subansiri", "Namsai", "Pakke Kessang", "Papum Pare", "Shi Yomi", "Siang", "Tawang", "Tirap", "Upper Siang", "Upper Subansiri", "West Kameng", "West Siang", "Itanagar Capital Complex"],
+            "Assam": ["Baksa", "Barpeta", "Biswanath", "Bongaigaon", "Cachar", "Charaideo", "Chirang", "Darrang", "Dhemaji", "Dhubri", "Dibrugarh", "Dima Hasao", "Goalpara", "Golaghat", "Hailakandi", "Hojai", "Jorhat", "Kamrup", "Kamrup Metropolitan", "Karbi Anglong", "Karimganj", "Kokrajhar", "Lakhimpur", "Majuli", "Morigaon", "Nagaon", "Nalbari", "Sivasagar", "Sonitpur", "South Salmara-Mankachar", "Tinsukia", "Udalguri", "West Karbi Anglong", "Bajali", "Tamulpur"],
+            "Bihar": ["Araria", "Arwal", "Aurangabad", "Banka", "Begusarai", "Bhagalpur", "Bhojpur", "Buxar", "Darbhanga", "East Champaran", "Gaya", "Gopalganj", "Jamui", "Jehanabad", "Kaimur", "Katihar", "Khagaria", "Kishanganj", "Lakhisarai", "Madhepura", "Madhubani", "Munger", "Muzaffarpur", "Nalanda", "Nawada", "Patna", "Purnia", "Rohtas", "Saharsa", "Samastipur", "Saran", "Sheikhpura", "Sheohar", "Sitamarhi", "Siwan", "Supaul", "Vaishali", "West Champaran"],
+            "Chhattisgarh": ["Balod", "Baloda Bazar", "Balrampur", "Bastar", "Bemetara", "Bijapur", "Bilaspur", "Dantewada", "Dhamtari", "Durg", "Gariaband", "Gaurela-Pendra-Marwahi", "Janjgir-Champa", "Jashpur", "Kabirdham", "Kanker", "Kondagaon", "Korba", "Koriya", "Mahasamund", "Mungeli", "Narayanpur", "Raigarh", "Raipur", "Rajnandgaon", "Sukma", "Surajpur", "Surguja", "Khairagarh-Chhuikhadan-Gandai", "Manendragarh-Chirmiri-Bharatpur", "Mohla-Manpur-Ambagarh Chowki", "Sarangarh-Bilaigarh", "Shakti"],
+            "Goa": ["North Goa", "South Goa"],
+            "Gujarat": ["Ahmedabad", "Amreli", "Anand", "Aravalli", "Banaskantha", "Bharuch", "Bhavnagar", "Botad", "Chhota Udaipur", "Dahod", "Dang", "Devbhoomi Dwarka", "Gandhinagar", "Gir Somnath", "Jamnagar", "Junagadh", "Kheda", "Kutch", "Mahisagar", "Mehsana", "Morbi", "Narmada", "Navsari", "Panchmahal", "Patan", "Porbandar", "Rajkot", "Sabarkantha", "Surat", "Surendranagar", "Tapi", "Vadodara", "Valsad"],
+            "Haryana": ["Ambala", "Bhiwani", "Charkhi Dadri", "Faridabad", "Fatehabad", "Gurugram", "Hisar", "Jhajjar", "Jind", "Kaithal", "Karnal", "Kurukshetra", "Mahendragarh", "Nuh", "Palwal", "Panchkula", "Panipat", "Rewari", "Rohtak", "Sirsa", "Sonipat", "Yamunanagar"],
+            "Himachal Pradesh": ["Bilaspur", "Chamba", "Hamirpur", "Kangra", "Kinnaur", "Kullu", "Lahaul and Spiti", "Mandi", "Shimla", "Sirmaur", "Solan", "Una"],
+            "Jharkhand": ["Bokaro", "Chatra", "Deoghar", "Dhanbad", "Dumka", "East Singhbhum", "Garhwa", "Giridih", "Godda", "Gumla", "Hazaribagh", "Jamtara", "Khunti", "Koderma", "Latehar", "Lohardaga", "Pakur", "Palamu", "Ramgarh", "Ranchi", "Sahibganj", "Seraikela-Kharsawan", "Simdega", "West Singhbhum"],
+            "Karnataka": ["Bagalkot", "Bangalore Rural", "Bangalore Urban", "Belgaum", "Bellary", "Bidar", "Bijapur", "Chamarajanagar", "Chikkaballapur", "Chikmagalur", "Chitradurga", "Dakshina Kannada", "Davangere", "Dharwad", "Gadag", "Gulbarga", "Hassan", "Haveri", "Kodagu", "Kolar", "Koppal", "Mandya", "Mysore", "Raichur", "Ramanagara", "Shimoga", "Tumkur", "Udupi", "Uttara Kannada", "Yadgir", "Vijayanagara"],
+            "Kerala": ["Alappuzha", "Ernakulam", "Idukki", "Kannur", "Kasaragod", "Kollam", "Kottayam", "Kozhikode", "Malappuram", "Palakkad", "Pathanamthitta", "Thiruvananthapuram", "Thrissur", "Wayanad"],
+            "Madhya Pradesh": ["Agar Malwa", "Alirajpur", "Anuppur", "Ashoknagar", "Balaghat", "Barwani", "Betul", "Bhind", "Bhopal", "Burhanpur", "Chhatarpur", "Chhindwara", "Damoh", "Datia", "Dewas", "Dhar", "Dindori", "Guna", "Gwalior", "Harda", "Hoshangabad (Narmadapuram)", "Indore", "Jabalpur", "Jhabua", "Katni", "Khandwa", "Khargone", "Mandla", "Mandsaur", "Morena", "Narsinghpur", "Neemuch", "Niwari", "Panna", "Raisen", "Rajgarh", "Ratlam", "Rewa", "Sagar", "Satna", "Sehore", "Seoni", "Shahdol", "Shajapur", "Sheopur", "Shivpuri", "Sidhi", "Singrauli", "Tikamgarh", "Ujjain", "Umaria", "Vidisha", "Mauganj", "Pandhurna", "Maihar"],
+            "Maharashtra": ["Ahmednagar", "Akola", "Amravati", "Aurangabad (Chhatrapati Sambhajinagar)", "Beed", "Bhandara", "Buldhana", "Chandrapur", "Dhule", "Gadchiroli", "Gondia", "Hingoli", "Jalgaon", "Jalna", "Kolhapur", "Latur", "Mumbai City", "Mumbai Suburban", "Nagpur", "Nanded", "Nandurbar", "Nashik", "Osmanabad (Dharashiv)", "Palghar", "Parbhani", "Pune", "Raigad", "Ratnagiri", "Sangli", "Satara", "Sindhudurg", "Solapur", "Thane", "Wardha", "Washim", "Yavatmal"],
+            "Manipur": ["Bishnupur", "Chandel", "Churachandpur", "Imphal East", "Imphal West", "Jiribam", "Kakching", "Kamjong", "Kangpokpi", "Noney", "Pherzawl", "Senapati", "Tamenglong", "Tengnoupal", "Thoubal", "Ukhrul"],
+            "Meghalaya": ["East Garo Hills", "East Jaintia Hills", "East Khasi Hills", "North Garo Hills", "Ri Bhoi", "South Garo Hills", "South West Garo Hills", "South West Khasi Hills", "West Garo Hills", "West Jaintia Hills", "West Khasi Hills", "Eastern West Khasi Hills"],
+            "Mizoram": ["Aizawl", "Champhai", "Hnahthial", "Khawzawl", "Kolasib", "Lawngtlai", "Lunglei", "Mamit", "Saiha", "Saitual", "Serchhip"],
+            "Nagaland": ["Dimapur", "Kiphire", "Kohima", "Longleng", "Mokokchung", "Mon", "Peren", "Phek", "Tuensang", "Wokha", "Zunheboto", "Noklak", "Chümoukedima", "Niuland", "Tseminyu", "Shamator"],
+            "Odisha": ["Angul", "Balangir", "Balasore", "Bargarh", "Bhadrak", "Boudh", "Cuttack", "Deogarh", "Dhenkanal", "Gajapati", "Ganjam", "Jagatsinghpur", "Jajpur", "Jharsuguda", "Kalahandi", "Kandhamal", "Kendrapara", "Kendujhar", "Khurda", "Koraput", "Malkangiri", "Mayurbhanj", "Nabarangpur", "Nayagarh", "Nuapada", "Puri", "Rayagada", "Sambalpur", "Subarnapur", "Sundargarh"],
+            "Punjab": ["Amritsar", "Barnala", "Bathinda", "Faridkot", "Fatehgarh Sahib", "Fazilka", "Ferozepur", "Gurdaspur", "Hoshiarpur", "Jalandhar", "Kapurthala", "Ludhiana", "Mansa", "Moga", "Muktsar", "Pathankot", "Patiala", "Rupnagar", "Sahibzada Ajit Singh Nagar (Mohali)", "Sangrur", "Shahid Bhagat Singh Nagar (Nawanshahr)", "Sri Muktsar Sahib", "Tarn Taran", "Malerkotla"],
+            "Rajasthan": ["Ajmer", "Alwar", "Banswara", "Baran", "Barmer", "Bharatpur", "Bhilwara", "Bikaner", "Bundi", "Chittorgarh", "Churu", "Dausa", "Dholpur", "Dungarpur", "Hanumangarh", "Jaipur", "Jaisalmer", "Jalore", "Jhalawar", "Jhunjhunu", "Jodhpur", "Karauli", "Kota", "Nagaur", "Pali", "Pratapgarh", "Rajsamand", "Sawai Madhopur", "Sikar", "Sirohi", "Sri Ganganagar", "Tonk", "Udaipur", "Anupgarh", "Balotra", "Beawar", "Deeg", "Didwana-Kuchaman", "Dudu", "Gangapur City", "Jaipur Rural", "Jodhpur Rural", "Kekri", "Khairthal-Tijara", "Kotputli-Behror", "Neem Ka Thana", "Phalodi", "Salumbar", "Sanchore", "Shahpura"],
+            "Sikkim": ["Gangtok", "Gyalshing", "Pakyong", "Soreng", "Mangan", "Namchi"],
             "Tamil Nadu": ["Ariyalur", "Chengalpattu", "Chennai", "Coimbatore", "Cuddalore", "Dharmapuri", "Dindigul", "Erode", "Kallakurichi", "Kanchipuram", "Kanyakumari", "Karur", "Krishnagiri", "Madurai", "Nagapattinam", "Namakkal", "Nilgiris", "Perambalur", "Pudukkottai", "Ramanathapuram", "Ranipet", "Salem", "Sivaganga", "Tenkasi", "Thanjavur", "Theni", "Thoothukudi", "Tiruchirappalli", "Tirunelveli", "Tirupathur", "Tiruppur", "Tiruvallur", "Tiruvannamalai", "Tiruvarur", "Vellore", "Viluppuram", "Virudhunagar"],
-            "Delhi": ["Central Delhi", "East Delhi", "New Delhi", "North Delhi", "North East Delhi", "North West Delhi", "Shahdara", "South Delhi", "South East Delhi", "South West Delhi", "West Delhi"]
+            "Telangana": ["Adilabad", "Bhadradri Kothagudem", "Hyderabad", "Jagtial", "Jangaon", "Jayashankar Bhupalpally", "Jogulamba Gadwal", "Kamareddy", "Karimnagar", "Khammam", "Komaram Bheem", "Mahabubabad", "Mahabubnagar", "Mancherial", "Medak", "Medchal", "Nagarkurnool", "Nalgonda", "Nirmal", "Nizamabad", "Peddapalli", "Rajanna Sircilla", "Rangareddy", "Sangareddy", "Siddipet", "Suryapet", "Vikarabad", "Wanaparthy", "Warangal", "Hanamkonda", "Yadadri Bhuvanagiri", "Mulugu", "Narayanpet"],
+            "Tripura": ["Dhalai", "Gomati", "Khowai", "North Tripura", "Sepahijala", "South Tripura", "Unakoti", "West Tripura"],
+            "Uttar Pradesh": ["Agra", "Aligarh", "Ambedkar Nagar", "Amethi", "Amroha", "Auraiya", "Ayodhya", "Azamgarh", "Baghpat", "Bahraich", "Ballia", "Balrampur", "Banda", "Barabanki", "Bareilly", "Basti", "Bhadohi", "Bijnor", "Budaun", "Bulandshahr", "Chandauli", "Chitrakoot", "Deoria", "Etah", "Etawah", "Farrukhabad", "Fatehpur", "Firozabad", "Gautam Buddha Nagar", "Ghaziabad", "Ghazipur", "Gonda", "Gorakhpur", "Hamirpur", "Hapur", "Hardoi", "Hathras", "Jalaun", "Jaunpur", "Jhansi", "Kannauj", "Kanpur Dehat", "Kanpur Nagar", "Kasganj", "Kaushambi", "Lakhimpur Kheri", "Kushinagar", "Lalitpur", "Lucknow", "Maharajganj", "Mahoba", "Mainpuri", "Mathura", "Mau", "Meerut", "Mirzapur", "Moradabad", "Muzaffarnagar", "Pilibhit", "Pratapgarh", "Prayagraj", "Raebareli", "Rampur", "Saharanpur", "Sambhal", "Sant Kabir Nagar", "Shahjahanpur", "Shamli", "Shravasti", "Siddharthnagar", "Sitapur", "Sonbhadra", "Sultanpur", "Unnao", "Varanasi"],
+            "Uttarakhand": ["Almora", "Bageshwar", "Chamoli", "Champawat", "Dehradun", "Haridwar", "Nainital", "Pauri Garhwal", "Pithoragarh", "Rudraprayag", "Tehri Garhwal", "Udham Singh Nagar", "Uttarkashi"],
+            "West Bengal": ["Alipurduar", "Bankura", "Birbhum", "Cooch Behar", "Dakshin Dinajpur", "Darjeeling", "Hooghly", "Howrah", "Jalpaiguri", "Jhargram", "Kalimpong", "Kolkata", "Malda", "Murshidabad", "Nadia", "North 24 Parganas", "Paschim Bardhaman", "Paschim Medinipur", "Purba Bardhaman", "Purba Medinipur", "Purulia", "South 24 Parganas", "Uttar Dinajpur"],
+            "Andaman and Nicobar Islands": ["Nicobar", "North and Middle Andaman", "South Andaman"],
+            "Chandigarh": ["Chandigarh"],
+            "Dadra and Nagar Haveli and Daman and Diu": ["Dadra and Nagar Haveli", "Daman", "Diu"],
+            "Delhi": ["Central Delhi", "East Delhi", "New Delhi", "North Delhi", "North East Delhi", "North West Delhi", "Shahdara", "South Delhi", "South East Delhi", "South West Delhi", "West Delhi"],
+            "Jammu and Kashmir": ["Anantnag", "Bandipora", "Baramulla", "Budgam", "Doda", "Ganderbal", "Jammu", "Kathua", "Kishtwar", "Kulgam", "Kupwara", "Poonch", "Pulwama", "Rajouri", "Ramban", "Reasi", "Samba", "Shopian", "Srinagar", "Udhampur"],
+            "Ladakh": ["Kargil", "Leh"],
+            "Lakshadweep": ["Lakshadweep"],
+            "Puducherry": ["Karaikal", "Mahe", "Puducherry", "Yanam"]
         };
 
         const stateGovtMap = {
@@ -102,7 +179,14 @@
             "Maharashtra": { party: "United Alliance Front", color: "text-orange-400" },
             "Delhi": { party: "Capital Care Party", color: "text-blue-400" },
             "Tamil Nadu": { party: "Southern League", color: "text-yellow-400" },
-            "Uttar Pradesh": { party: "Janata Vikas", color: "text-red-400" }
+            "Uttar Pradesh": { party: "Janata Vikas", color: "text-red-400" },
+            "Kerala": { party: "Left Democratic Front", color: "text-red-500" },
+            "West Bengal": { party: "Trinamool Congress", color: "text-green-500" },
+            "Gujarat": { party: "Bharatiya Janata Party", color: "text-orange-500" },
+            "Rajasthan": { party: "Indian National Congress", color: "text-blue-500" },
+            "Telangana": { party: "Bharat Rashtra Samithi", color: "text-pink-400" },
+            "Bihar": { party: "Janata Dal (United)", color: "text-green-300" },
+            "Punjab": { party: "Aam Aadmi Party", color: "text-blue-300" }
         };
 
         // --- Components ---
@@ -215,13 +299,29 @@
           );
         });
 
-        const AdminRow = React.memo(({ report, onStatusUpdate, onVerifyStart }) => {
+        // Helper: Format Date
+        const formatDate = (timestamp) => {
+            if (!timestamp) return 'Just now';
+            // Handle Firestore Timestamp
+            if (timestamp.seconds) {
+                return new Date(timestamp.seconds * 1000).toLocaleDateString('en-IN', {
+                    day: 'numeric', month: 'short', year: 'numeric'
+                });
+            }
+            // Handle string
+            return timestamp;
+        };
+
+        const AdminRow = React.memo(({ report, onStatusUpdate, onVerifyStart, formatDate }) => {
           return (
             <tr className="hover:bg-gray-750 transition">
               <td className="p-4 font-mono text-blue-400 text-sm">{report.id}</td>
               <td className="p-4">
                 <div className="text-gray-300 font-bold text-sm">{report.district}</div>
-                <div className="text-gray-500 text-xs">{report.state}</div>
+                <div className="text-gray-500 text-xs mt-1 flex items-center">
+                    <Clock size={10} className="mr-1"/>
+                    {formatDate(report.createdAt || report.timestamp)}
+                </div>
               </td>
               <td className="p-4 text-gray-300">{report.category}</td>
               <td className="p-4">
@@ -268,6 +368,90 @@
           );
         });
 
+        const TrendChart = ({ data }) => {
+            // Mock data structure: { label: '2021', value: 45 }, etc.
+            const years = ['2020', '2021', '2022', '2023', '2024'];
+            // Mock improvement data for top 3 districts
+            const districts = [
+                { name: 'Bangalore Urban', data: [30, 45, 55, 68, 82], color: '#3b82f6' }, // Blue
+                { name: 'Mumbai Suburban', data: [25, 35, 48, 60, 75], color: '#10b981' }, // Green
+                { name: 'New Delhi', data: [40, 50, 58, 65, 78], color: '#f59e0b' } // Amber
+            ];
+
+            const height = 200;
+            const width = 500;
+            const padding = 40;
+            const yMax = 100;
+
+            const getX = (index) => padding + index * ((width - 2 * padding) / (years.length - 1));
+            const getY = (val) => height - padding - (val / yMax) * (height - 2 * padding);
+
+            return (
+                <div className="bg-gray-800 p-6 rounded-xl border border-gray-700 mt-6 overflow-hidden">
+                    <h3 className="text-gray-300 mb-6 font-bold flex items-center">
+                        <TrendingUp className="mr-2 text-blue-400" size={20}/> 
+                        Road Quality Index (5-Year Trend)
+                    </h3>
+                    <div className="overflow-x-auto">
+                        <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="min-w-[500px]">
+                            {/* Grid Lines */}
+                            {[0, 25, 50, 75, 100].map(val => (
+                                <line 
+                                    key={val} 
+                                    x1={padding} 
+                                    y1={getY(val)} 
+                                    x2={width - padding} 
+                                    y2={getY(val)} 
+                                    stroke="#374151" 
+                                    strokeWidth="1" 
+                                />
+                            ))}
+
+                            {/* Axis Labels */}
+                            {years.map((year, i) => (
+                                <text key={year} x={getX(i)} y={height - 10} textAnchor="middle" fill="#9ca3af" fontSize="12">{year}</text>
+                            ))}
+                            <text x={10} y={getY(100)} fill="#9ca3af" fontSize="10">100%</text>
+                            <text x={10} y={getY(0)} fill="#9ca3af" fontSize="10">0%</text>
+
+                            {/* Lines */}
+                            {districts.map((d, i) => {
+                                const pathD = d.data.map((val, index) => 
+                                    `${index === 0 ? 'M' : 'L'} ${getX(index)} ${getY(val)}`
+                                ).join(' ');
+                                
+                                return (
+                                    <g key={d.name}>
+                                        <path d={pathD} fill="none" stroke={d.color} strokeWidth="3" />
+                                        {d.data.map((val, index) => (
+                                            <circle 
+                                                key={index} 
+                                                cx={getX(index)} 
+                                                cy={getY(val)} 
+                                                r="4" 
+                                                fill={d.color} 
+                                                className="hover:r-6 transition-all cursor-pointer"
+                                            >
+                                                <title>{d.name}: {val}%</title>
+                                            </circle>
+                                        ))}
+                                    </g>
+                                );
+                            })}
+                        </svg>
+                    </div>
+                    <div className="flex justify-center mt-4 space-x-6">
+                        {districts.map(d => (
+                            <div key={d.name} className="flex items-center text-xs text-gray-400">
+                                <span className="w-3 h-3 rounded-full mr-2" style={{backgroundColor: d.color}}></span>
+                                {d.name}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            );
+        };
+
         // Helper: Compress Image
         const compressImage = (file) => {
           return new Promise((resolve, reject) => {
@@ -301,47 +485,56 @@
           const [loadingData, setLoadingData] = useState(true);
           const [visibleCount, setVisibleCount] = useState(9);
           const [adminVisibleCount, setAdminVisibleCount] = useState(20);
+          const [adminSortBy, setAdminSortBy] = useState('upvotes'); // Default to upvotes
 
           // Auth & Data
           useEffect(() => {
             const initAuth = async () => {
               try {
-                await signInAnonymously(auth);
+                if (auth) {
+                  await signInAnonymously(auth);
+                }
               } catch (error) {
                 console.error("Auth failed", error);
               }
             };
             initAuth();
             
-            const unsubscribe = onAuthStateChanged(auth, setUser);
-            return () => unsubscribe();
+            if (auth) {
+              const unsubscribe = onAuthStateChanged(auth, setUser);
+              return () => unsubscribe();
+            }
           }, []);
 
           useEffect(() => {
-            if (!user) return;
+            if (!user || !db) return;
 
-            const reportsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'reports');
-            
-            const unsubscribe = onSnapshot(reportsCollection, (snapshot) => {
-              const fetchedReports = snapshot.docs.map(doc => ({
-                ...doc.data(),
-                firestoreId: doc.id
-              }));
-              
-              fetchedReports.sort((a, b) => {
-                const tA = a.createdAt?.seconds || 0;
-                const tB = b.createdAt?.seconds || 0;
-                return tB - tA;
-              });
+            try {
+                const reportsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'reports');
+                
+                const unsubscribe = onSnapshot(reportsCollection, (snapshot) => {
+                  const fetchedReports = snapshot.docs.map(doc => ({
+                    ...doc.data(),
+                    firestoreId: doc.id
+                  }));
+                  
+                  fetchedReports.sort((a, b) => {
+                    const tA = a.createdAt?.seconds || 0;
+                    const tB = b.createdAt?.seconds || 0;
+                    return tB - tA;
+                  });
 
-              setReports(fetchedReports);
-              setLoadingData(false);
-            }, (error) => {
-              console.error("Error fetching reports:", error);
-              setLoadingData(false);
-            });
+                  setReports(fetchedReports);
+                  setLoadingData(false);
+                }, (error) => {
+                  console.error("Error fetching reports:", error);
+                  setLoadingData(false);
+                });
 
-            return () => unsubscribe();
+                return () => unsubscribe();
+            } catch (err) {
+                console.error("Firestore Error:", err);
+            }
           }, [user]);
 
           useEffect(() => {
@@ -410,7 +603,7 @@
             area: '',
             location: '',
             coordinates: null, 
-            category: 'Pothole',
+            category: '',
             description: '',
             image: null
           });
@@ -603,7 +796,7 @@
                   <div className="flex justify-between h-16 items-center">
                     <div className="flex items-center cursor-pointer" onClick={() => setActiveTab('home')}>
                       <div className="bg-blue-600 p-2 rounded-lg mr-2"><MapPin className="text-white" size={24} /></div>
-                      <span className="font-bold text-xl tracking-tight text-white">CivicFix</span>
+                      <span className="font-bold text-xl tracking-tight text-white">Smart Road</span>
                     </div>
                     <div className="hidden md:flex space-x-8">
                       {['home', 'feed', 'stats', 'admin'].map((tab) => (
@@ -617,17 +810,90 @@
 
               <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {activeTab === 'home' && (
-                  <div className="space-y-16">
-                    <section className="text-center py-20 px-4">
-                      <h1 className="text-5xl font-extrabold text-white mb-6 leading-tight">CivicFix <br/><span className="text-blue-500">Smoother Journeys.</span></h1>
-                      <div className="max-w-3xl mx-auto mb-10 bg-gradient-to-r from-blue-900/40 to-purple-900/40 border border-blue-500/30 p-6 rounded-2xl backdrop-blur-sm">
-                        <p className="text-2xl font-serif italic text-blue-200 mb-2">"Your shutter can save a life."</p>
-                      </div>
-                      <div className="flex justify-center gap-4">
-                        <button onClick={() => setActiveTab('report')} className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg hover:bg-blue-500 transition">File Complaint</button>
-                        <button onClick={() => setActiveTab('stats')} className="bg-gray-800 text-white border border-gray-700 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-700 transition">View Graphs</button>
+                  <div className="space-y-12">
+                    {/* Hero Section */}
+                    <section className="relative text-center py-16 px-4 overflow-hidden">
+                      <div className="relative z-10 max-w-4xl mx-auto">
+                        <div className="inline-block mb-6 px-4 py-1.5 rounded-full bg-blue-900/30 border border-blue-500/30 text-blue-300 text-sm font-medium animate-pulse">
+                          Citizen-Led Infrastructure Improvement
+                        </div>
+                        <h1 className="text-5xl md:text-6xl font-extrabold text-white mb-6 tracking-tight leading-tight">
+                          Smart Road Monitoring <br/>
+                          <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">Smoother Journeys.</span>
+                        </h1>
+                        
+                        <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed">
+                          Join thousands of citizens making roads safer. Report potholes, broken lights, and hazards in seconds.
+                        </p>
+
+                        {/* Quote Section - Prominently Displayed */}
+                        <div className="bg-gray-800/50 backdrop-blur-md border border-gray-700 p-8 rounded-2xl max-w-3xl mx-auto mb-10 shadow-2xl transform hover:scale-[1.01] transition duration-300">
+                           <p className="text-3xl font-serif italic text-white mb-2">"Your shutter can save a life."</p>
+                           <p className="text-sm text-gray-400 uppercase tracking-widest font-semibold">One Photo = One Accident Less</p>
+                        </div>
+
+                        {/* Action Buttons - Moved to Top */}
+                        <div className="flex flex-col sm:flex-row justify-center gap-4">
+                          <button 
+                            onClick={() => setActiveTab('report')} 
+                            className="bg-blue-600 text-white px-8 py-4 rounded-xl font-bold text-lg shadow-lg shadow-blue-600/30 hover:bg-blue-500 hover:shadow-blue-600/50 transition transform hover:-translate-y-1 flex items-center justify-center"
+                          >
+                            <Camera className="mr-2" /> File Complaint
+                          </button>
+                          <button 
+                            onClick={() => setActiveTab('stats')} 
+                            className="bg-gray-800 text-white border border-gray-700 px-8 py-4 rounded-xl font-bold text-lg hover:bg-gray-700 hover:border-gray-600 transition flex items-center justify-center"
+                          >
+                            <BarChart2 className="mr-2" /> View Analytics
+                          </button>
+                        </div>
                       </div>
                     </section>
+
+                    {/* Stats Section - Moved Below */}
+                    <div className="max-w-7xl mx-auto px-4 pb-12">
+                        <div className="flex items-center mb-8">
+                            <div className="h-px bg-gray-700 flex-1"></div>
+                            <span className="px-4 text-gray-500 font-medium uppercase text-sm tracking-widest">National Performance Insights</span>
+                            <div className="h-px bg-gray-700 flex-1"></div>
+                        </div>
+                        
+                        <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+                            {/* Star City */}
+                            <div className="bg-gray-800/80 backdrop-blur border border-gray-700 p-8 rounded-2xl relative overflow-hidden group hover:border-yellow-500/50 transition duration-300 shadow-xl">
+                                <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition"><Trophy size={120} className="text-yellow-500" /></div>
+                                <div className="relative z-10">
+                                    <div className="flex items-center space-x-3 mb-4">
+                                        <div className="p-2 bg-yellow-900/30 rounded-lg text-yellow-500"><Star size={24} fill="currentColor" /></div>
+                                        <h3 className="text-gray-300 font-bold uppercase tracking-wide text-sm">Top Performing District</h3>
+                                    </div>
+                                    <p className="text-4xl font-extrabold text-white mb-1">{stats.districtRankings.length > 0 ? stats.districtRankings[0].name : "N/A"}</p>
+                                    <div className="flex items-center space-x-2 text-green-400 font-bold text-lg">
+                                        <TrendingUp size={20} />
+                                        <span>{Math.round(stats.districtRankings.length > 0 ? stats.districtRankings[0].ratio : 0)}% Resolution Rate</span>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mt-4">Setting the benchmark for civic responsiveness and road safety standards.</p>
+                                </div>
+                            </div>
+
+                            {/* Worst City */}
+                            <div className="bg-gray-800/80 backdrop-blur border border-gray-700 p-8 rounded-2xl relative overflow-hidden group hover:border-red-500/50 transition duration-300 shadow-xl">
+                                <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition"><AlertOctagon size={120} className="text-red-500" /></div>
+                                <div className="relative z-10">
+                                    <div className="flex items-center space-x-3 mb-4">
+                                        <div className="p-2 bg-red-900/30 rounded-lg text-red-500"><AlertTriangle size={24} /></div>
+                                        <h3 className="text-gray-300 font-bold uppercase tracking-wide text-sm">Critical Attention Required</h3>
+                                    </div>
+                                    <p className="text-4xl font-extrabold text-white mb-1">{stats.districtRankings.length > 0 ? stats.districtRankings[stats.districtRankings.length - 1].name : "N/A"}</p>
+                                    <div className="flex items-center space-x-2 text-red-400 font-bold text-lg">
+                                        <Activity size={20} />
+                                        <span>{Math.round(stats.districtRankings.length > 0 ? stats.districtRankings[stats.districtRankings.length - 1].ratio : 0)}% Resolution Rate</span>
+                                    </div>
+                                    <p className="text-sm text-gray-500 mt-4">Immediate administrative intervention required to improve road infrastructure.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                   </div>
                 )}
 
@@ -643,10 +909,74 @@
                              </div>
                         </div>
                         <div className="grid grid-cols-2 gap-6">
-                            <input type="text" placeholder="State" className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white" value={newReport.state} onChange={(e) => setNewReport({...newReport, state: e.target.value})} />
-                            <input type="text" placeholder="District" className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white" value={newReport.district} onChange={(e) => setNewReport({...newReport, district: e.target.value})} />
+                            <div>
+                                <select 
+                                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={newReport.state}
+                                    onChange={(e) => {
+                                        const val = e.target.value;
+                                        setNewReport({
+                                            ...newReport,
+                                            state: val,
+                                            district: locationData[val] ? locationData[val][0] : ''
+                                        });
+                                    }}
+                                >
+                                    {Object.keys(locationData).sort().map(state => (
+                                        <option key={state} value={state}>{state}</option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <select 
+                                    className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500"
+                                    value={newReport.district}
+                                    onChange={(e) => setNewReport({...newReport, district: e.target.value})}
+                                >
+                                    {locationData[newReport.state]?.map(district => (
+                                        <option key={district} value={district}>{district}</option>
+                                    ))}
+                                </select>
+                            </div>
                         </div>
-                        <input type="text" placeholder="Location" className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white" value={newReport.location} onChange={(e) => setNewReport({...newReport, location: e.target.value})} />
+                        
+                        <input 
+                            type="text" 
+                            placeholder="Area / Locality (e.g. Indiranagar)" 
+                            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                            value={newReport.area} 
+                            onChange={(e) => setNewReport({...newReport, area: e.target.value})} 
+                            required
+                        />
+
+                        <div className="relative">
+                            <input 
+                                type="text" 
+                                list="problem-types"
+                                placeholder="Type of Problem (e.g. Pothole, Broken Road)" 
+                                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                                value={newReport.category} 
+                                onChange={(e) => setNewReport({...newReport, category: e.target.value})} 
+                                required
+                            />
+                            <datalist id="problem-types">
+                                <option value="Pothole" />
+                                <option value="Broken Road" />
+                                <option value="Water Leakage" />
+                                <option value="Street Light" />
+                                <option value="Garbage Dump" />
+                                <option value="Broken Signal" />
+                                <option value="Manhole Cover" />
+                            </datalist>
+                        </div>
+
+                        <input 
+                            type="text" 
+                            placeholder="Address or Landmark" 
+                            className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
+                            value={newReport.location} 
+                            onChange={(e) => setNewReport({...newReport, location: e.target.value})} 
+                        />
                         <textarea placeholder="Description" rows="3" className="w-full p-3 bg-gray-700 border border-gray-600 rounded-xl text-white" value={newReport.description} onChange={(e) => setNewReport({...newReport, description: e.target.value})}></textarea>
                         <button type="submit" className="w-full bg-blue-600 text-white py-4 rounded-xl font-bold hover:bg-blue-500 transition">Submit Report</button>
                     </form>
@@ -671,6 +1001,9 @@
                              ))}
                         </div>
                      </div>
+                     
+                     {/* New Graph Visualization */}
+                     <TrendChart />
                   </div>
                 )}
 
@@ -685,11 +1018,46 @@
                 )}
 
                 {activeTab === 'admin' && (
-                  <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700 overflow-x-auto">
-                    <table className="w-full text-left">
-                        <thead><tr className="bg-gray-900 text-gray-400"><th className="p-4">ID</th><th className="p-4">Location</th><th className="p-4">Type</th><th className="p-4">Upvotes</th><th className="p-4">Status</th><th className="p-4">Action</th></tr></thead>
-                        <tbody className="divide-y divide-gray-700">{reports.slice(0, adminVisibleCount).map((r) => <AdminRow key={r.id} report={r} onStatusUpdate={updateStatus} onVerifyStart={setResolvingId} />)}</tbody>
-                    </table>
+                  <div>
+                    <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-2xl font-bold text-white">Official Portal</h2>
+                        <div className="flex bg-gray-800 rounded-lg p-1 border border-gray-700">
+                            <button 
+                                onClick={() => setAdminSortBy('date')}
+                                className={`px-4 py-2 rounded-md text-sm font-medium transition ${adminSortBy === 'date' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Newest
+                            </button>
+                            <button 
+                                onClick={() => setAdminSortBy('upvotes')}
+                                className={`px-4 py-2 rounded-md text-sm font-medium transition ${adminSortBy === 'upvotes' ? 'bg-blue-600 text-white' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Most Critical
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="bg-gray-800 rounded-2xl shadow-xl border border-gray-700 overflow-x-auto">
+                        <table className="w-full text-left">
+                            <thead><tr className="bg-gray-900 text-gray-400"><th className="p-4">ID</th><th className="p-4">Location & Date</th><th className="p-4">Type</th><th className="p-4">Upvotes</th><th className="p-4">Status</th><th className="p-4">Action</th></tr></thead>
+                            <tbody className="divide-y divide-gray-700">
+                                {reports
+                                    .slice() // create copy to sort
+                                    .sort((a, b) => {
+                                        if (adminSortBy === 'upvotes') {
+                                            return b.upvotes - a.upvotes;
+                                        } else {
+                                            // Default date sort (assuming createdAt exists or fallback)
+                                            const tA = a.createdAt?.seconds || 0;
+                                            const tB = b.createdAt?.seconds || 0;
+                                            return tB - tA;
+                                        }
+                                    })
+                                    .slice(0, adminVisibleCount)
+                                    .map((r) => <AdminRow key={r.id} report={r} onStatusUpdate={updateStatus} onVerifyStart={setResolvingId} formatDate={formatDate} />)}
+                            </tbody>
+                        </table>
+                    </div>
                   </div>
                 )}
               </main>
