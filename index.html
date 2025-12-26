@@ -73,19 +73,15 @@
         
         let app, auth, db;
         
-        try {
-            const configStr = typeof __firebase_config !== 'undefined' ? __firebase_config : null;
-            if (configStr) {
-                const firebaseConfig = JSON.parse(configStr);
-                app = initializeApp(firebaseConfig);
-                auth = getAuth(app);
-                db = getFirestore(app);
-            } else {
-                console.warn("Firebase config not found. App running in offline/demo mode.");
-            }
-        } catch (e) {
-            console.error("Firebase init error:", e);
-        }
+        const firebaseConfig = {
+  apiKey: "AIzaSyAqIsVhv0N_V_z3ENsYZz76sRQfYlwIrkM",
+  authDomain: "civicfix-fbfcc.firebaseapp.com",
+  projectId: "civicfix-fbfcc",
+  storageBucket: "civicfix-fbfcc.firebasestorage.app",
+  messagingSenderId: "291507757806",
+  appId: "1:291507757806:web:0bfcffd778b8e1488c09ff"
+};
+        const app = initializeApp(firebaseConfig);
 
         // --- Static Data ---
         const locationData = {
