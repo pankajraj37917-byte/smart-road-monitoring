@@ -67,21 +67,26 @@
             serverTimestamp
         } from 'firebase/firestore';
 
-        // --- Firebase Initialization ---
-        // Handle environment variables or fallbacks for standalone use
+        // --- Firebase Initialization (FIXED) ---
+        // I have removed the conflicting 'let app' and ensured auth/db are started
+        
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        
-        let app, auth, db;
-        
+        const apiKey = ""; // Canvas requirement, ignore this line, using your keys below
+
+        // YOUR ACTUAL KEYS
         const firebaseConfig = {
-  apiKey: "AIzaSyAqIsVhv0N_V_z3ENsYZz76sRQfYlwIrkM",
-  authDomain: "civicfix-fbfcc.firebaseapp.com",
-  projectId: "civicfix-fbfcc",
-  storageBucket: "civicfix-fbfcc.firebasestorage.app",
-  messagingSenderId: "291507757806",
-  appId: "1:291507757806:web:0bfcffd778b8e1488c09ff"
-};
+            apiKey: "AIzaSyAqIsVhv0N_V_z3ENsYZz76sRQfYlwIrkM",
+            authDomain: "civicfix-fbfcc.firebaseapp.com",
+            projectId: "civicfix-fbfcc",
+            storageBucket: "civicfix-fbfcc.firebasestorage.app",
+            messagingSenderId: "291507757806",
+            appId: "1:291507757806:web:0bfcffd778b8e1488c09ff"
+        };
+
+        // Initialize Everything Properly
         const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);       // This was missing
+        const db = getFirestore(app);    // This was missing
 
         // --- Static Data ---
         const locationData = {
@@ -195,7 +200,7 @@
                 
                 <div className="pt-4 mt-4 border-t border-gray-700 flex items-center justify-between">
                   <button 
-                    onClick={() => onUpvote(report.firestoreId, report.upvotes)}
+                    onClick={() => onUpvote(report.firestoreId || report.id, report.upvotes)}
                     className="flex items-center space-x-2 text-gray-400 hover:text-blue-400 transition"
                   >
                     <ThumbsUp size={18} />
@@ -243,14 +248,14 @@
                   ) : (
                     <>
                       <button 
-                        onClick={() => onStatusUpdate(report.firestoreId, 'In Progress')}
+                        onClick={() => onStatusUpdate(report.firestoreId || report.id, 'In Progress')}
                         className="text-gray-400 hover:text-white border border-gray-600 px-3 py-1 rounded text-xs transition"
                         disabled={report.status === 'In Progress'}
                       >
                         Accept
                       </button>
                       <button 
-                        onClick={() => onVerifyStart(report.firestoreId)}
+                        onClick={() => onVerifyStart(report.firestoreId || report.id)}
                         className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-500 flex items-center shadow-lg shadow-green-900/20"
                       >
                         <Upload size={12} className="mr-1" /> Verify & Close
@@ -289,7 +294,7 @@
 
         const SmartRoadMonitoring = () => {
           const [activeTab, setActiveTab] = useState('home'); 
-          const apiKey = ""; 
+          // Note: API Key is defined globally above
 
           const [user, setUser] = useState(null);
           const [reports, setReports] = useState([]);
@@ -299,25 +304,9 @@
 
           // Auth & Data
           useEffect(() => {
-            if (!auth) {
-                // Mock user for offline mode/demo
-                if (!app) {
-                    setUser({ uid: 'demo-user' });
-                    setReports([
-                        { id: 'DEMO-1', district: 'Bangalore Urban', state: 'Karnataka', area: 'Indiranagar', category: 'Pothole', upvotes: 5, status: 'Pending', image: 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&q=80&w=800', timestamp: '10m ago' }
-                    ]);
-                    setLoadingData(false);
-                }
-                return;
-            }
-
             const initAuth = async () => {
               try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                  await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                  await signInAnonymously(auth);
-                }
+                await signInAnonymously(auth);
               } catch (error) {
                 console.error("Auth failed", error);
               }
@@ -329,7 +318,7 @@
           }, []);
 
           useEffect(() => {
-            if (!user || !db) return;
+            if (!user) return;
 
             const reportsCollection = collection(db, 'artifacts', appId, 'public', 'data', 'reports');
             
@@ -529,7 +518,6 @@
           const handleSubmit = async (e) => {
             e.preventDefault();
             if (!user) { alert("Please wait for initialization."); return; }
-            if (!db) { alert("Database not connected."); return; }
 
             const report = {
               id: `WRD-${Math.floor(Math.random() * 90) + 10}-${Math.floor(Math.random() * 9000) + 1000}`,
@@ -559,7 +547,7 @@
           };
 
           const updateStatus = useCallback(async (docId, newStatus) => {
-            if (!docId || !user || !db) return;
+            if (!docId || !user) return;
             try {
               const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', docId);
               await updateDoc(docRef, { status: newStatus });
@@ -568,7 +556,7 @@
 
           const submitResolution = async () => {
             if (!proofImage) { alert("Please upload a photo of the fixed road."); return; }
-            if (!resolvingId || !user || !db) return;
+            if (!resolvingId || !user) return;
             try {
               const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', resolvingId);
               await updateDoc(docRef, { status: 'Resolved', proofImage: proofImage });
@@ -578,7 +566,7 @@
           };
 
           const handleUpvote = useCallback(async (docId, currentUpvotes) => {
-            if (!docId || !user || !db) return;
+            if (!docId || !user) return;
             try {
               const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'reports', docId);
               await updateDoc(docRef, { upvotes: currentUpvotes + 1 });
